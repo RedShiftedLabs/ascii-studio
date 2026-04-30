@@ -163,37 +163,3 @@
 #preview-wrap {
   position: relative;
 }
-
-#zoom-controls {
-  position: sticky;
-  bottom: 0px;
-  margin-top: 10px;
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  padding: 6px;
-  border-radius: var(--r);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-  z-index: 100;
-  width: max-content;
-}
-
-#zoom-controls .btn {
-  padding: 6px 8px;
-}
-
-#zoom-level {
-  font-family: 'Geist Mono', monospace;
-  font-size: 11px;
-  color: var(--text-2);
-  min-width: 36px;
-  text-align: center;
-  cursor: pointer;
-  user-select: none;
-}
-#zoom-level:hover {
-  color: var(--text);
-}

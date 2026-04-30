@@ -297,6 +297,15 @@
           </svg>
           Open
         </button>
+        <div id="zoom-controls" style="display:none; align-items:center; gap:2px; background:var(--surface-3); border:1px solid var(--border-2); padding:2px; border-radius:var(--r-sm); margin-right:4px;">
+          <button id="btn-zoom-out" class="btn btn-ghost" title="Zoom Out" style="padding:4px 6px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          </button>
+          <span id="zoom-level" style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--text-2);min-width:32px;text-align:center;cursor:pointer;user-select:none;">Fit</span>
+          <button id="btn-zoom-in" class="btn btn-ghost" title="Zoom In" style="padding:4px 6px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          </button>
+        </div>
         <button class="btn btn-teal export-btn" id="btn-html" style="display:none">HTML</button>
         <button class="btn btn-yellow export-btn" id="btn-txt" style="display:none">TXT</button>
         <button class="btn btn-orange export-btn" id="btn-png" style="display:none">PNG</button>
@@ -335,15 +344,6 @@
       </div>
       <div id="result" style="display:none">
         <div id="result-inner" style="transition: zoom 0.1s ease-out;"></div>
-      </div>
-      <div id="zoom-controls" style="display:none">
-        <button id="btn-zoom-out" class="btn btn-ghost" title="Zoom Out">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-        </button>
-        <span id="zoom-level">Fit</span>
-        <button id="btn-zoom-in" class="btn btn-ghost" title="Zoom In">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-        </button>
       </div>
     </div>
 
