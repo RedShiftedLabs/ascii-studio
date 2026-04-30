@@ -113,10 +113,34 @@ export function initControls(onChange) {
 
   bindCheckbox('saliency_aware', 'saliencyAware', 'saliency-sub');
   bindSlider('saliency_boost', 'saliencyBoost');
-  bindCheckbox('fusion_v6', 'fusionV6');
-  bindCheckbox('freq_aware', 'freqAware');
-  bindCheckbox('glyph_match', 'glyphMatch');
-  bindCheckbox('glyph_err_diff', 'glyphErrDiff');
+
+  // Advanced render modes are mutually exclusive — only one can be active at a time.
+  const _advancedModes = [
+    { id: 'fusion_v6',    key: 'fusionV6' },
+    { id: 'freq_aware',   key: 'freqAware' },
+    { id: 'glyph_match',  key: 'glyphMatch' },
+    { id: 'glyph_err_diff', key: 'glyphErrDiff' },
+  ];
+
+  _advancedModes.forEach(({ id, key }) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.checked = state[key];
+    el.addEventListener('change', () => {
+      if (el.checked) {
+        // Uncheck all other exclusive modes
+        _advancedModes.forEach(m => {
+          if (m.id !== id) {
+            state[m.key] = false;
+            const other = document.getElementById(m.id);
+            if (other) other.checked = false;
+          }
+        });
+      }
+      state[key] = el.checked;
+      onChange(state);
+    });
+  });
 
   bindSlider('font_size', 'fontSize', v => v);
   const fontSelect = document.getElementById('output_font');

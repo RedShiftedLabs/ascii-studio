@@ -52,9 +52,10 @@ export function measureCharDensity(chars, size = 16) {
 export function loadImageFromFile(file) {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = reject;
-    img.src = URL.createObjectURL(file);
+    const blobUrl = URL.createObjectURL(file);
+    img.onload = () => { URL.revokeObjectURL(blobUrl); resolve(img); };
+    img.onerror = (e) => { URL.revokeObjectURL(blobUrl); reject(e); };
+    img.src = blobUrl;
   });
 }
 
