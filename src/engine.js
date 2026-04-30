@@ -786,9 +786,12 @@ export function runPipeline(img, params) {
   bright = resized;
 
   let msCtx = null;
-  if (multiscale || fusionV6) {
+  if (fusionV6) {
+    // V6 needs the raw band context; do NOT apply msCtx.base to bright here.
     msCtx = applyMultiscaleEnhancement(bright, gridCols, rows, multiscaleBoost);
-    if (!fusionV6 || multiscale) bright = msCtx.base; // Only apply base enhancement if explicitly multiscale
+  } else if (multiscale) {
+    msCtx = applyMultiscaleEnhancement(bright, gridCols, rows, multiscaleBoost);
+    bright = msCtx.base;
   }
 
   const colourResized = colourMode ? resizeColour(sharpened, srcW, srcH, gridCols, charAspect) : null;

@@ -10,6 +10,7 @@ import {
 let currentFile = null;
 let params = { ...DEFAULT_PARAMS };
 let renderDebounce = null;
+let isRendering = false;
 
 const dropzone = document.getElementById('dropzone');
 const fileInput = document.getElementById('file-input');
@@ -71,12 +72,21 @@ async function onFile(file) {
 
 function scheduleRender() {
   if (!currentFile) return;
+  // Skip auto-render for slow glyph algorithms — user must click Render manually.
+  if (params.glyphMatch || params.glyphErrDiff) {
+    setStatus('Press Render to apply (slow mode active)', 'busy');
+    return;
+  }
+  // Don't queue a new render while one is already running.
+  if (isRendering) return;
   clearTimeout(renderDebounce);
   renderDebounce = setTimeout(doRender, 300);
 }
 
 async function doRender() {
   if (!currentFile) { setStatus('Drop an image to start', ''); return; }
+  if (isRendering) return; // Prevent stacked renders
+  isRendering = true;
   setBusy(true);
   setStatus('Rendering…', 'busy');
 
@@ -93,6 +103,7 @@ async function doRender() {
     setStatus('Error: ' + e.message, 'err');
     console.error(e);
   }
+  isRendering = false;
   setBusy(false);
 }
 
@@ -175,8 +186,4 @@ function toast(msg) {
   setTimeout(() => toastEl.classList.remove('show'), 2200);
 }
 
-window._toast = (msg) => {
-  toastMsg.textContent = msg;
-  document.getElementById('toast').classList.add('show');
-  setTimeout(() => document.getElementById('toast').classList.remove('show'), 2200);
-};
+

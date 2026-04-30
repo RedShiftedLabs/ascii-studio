@@ -174,24 +174,3 @@ function updateFontPreview(font) {
   if (el) el.style.fontFamily = font;
 }
 
-export function getParams() {
-  const state = {};
-  const sliders = ['cols', 'char_aspect', 'sharpen', 'contrast', 'gamma', 'edge_weight',
-    'attenuation', 'vignette', 'grain', 'font_size', 'multiscale_boost', 'saliency_boost'];
-  sliders.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) state[id] = parseFloat(el.value);
-  });
-  const selects = ['charset', 'theme', 'output_font'];
-  selects.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) state[id] = el.value;
-  });
-  const checks = ['equalize', 'dither', 'invert', 'multiscale', 'saliency_aware',
-    'fusion_v6', 'freq_aware', 'glyph_match', 'glyph_err_diff'];
-  checks.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) state[id] = el.checked;
-  });
-  return state;
-}
