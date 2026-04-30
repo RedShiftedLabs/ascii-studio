@@ -88,6 +88,26 @@ export function initControls(onChange) {
   bindCheckbox('multiscale', 'multiscale', 'multiscale-sub');
   bindSlider('multiscale_boost', 'multiscaleBoost');
 
+  function updateThemeSwatch(theme) {
+    const swBg = document.getElementById('swatch-bg');
+    const swFg = document.getElementById('swatch-fg');
+    const swLbl = document.getElementById('swatch-label');
+    if (swBg) swBg.style.background = theme.bg;
+    if (swFg) swFg.style.background = theme.fg;
+    if (swLbl) swLbl.textContent = `${theme.bg} / ${theme.fg}`;
+  }
+
+  function flashColorPickers() {
+    ['bg_hex', 'fg_hex'].forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.classList.remove('color-flash');
+      // Force reflow to restart animation
+      void el.offsetWidth;
+      el.classList.add('color-flash');
+    });
+  }
+
   themeSelect.addEventListener('change', () => {
     const t = THEMES[themeSelect.value];
     if (!t) return;
@@ -97,6 +117,8 @@ export function initControls(onChange) {
     state.fgHex = t.fg;
     document.getElementById('bg_hex').value = t.bg;
     document.getElementById('fg_hex').value = t.fg;
+    updateThemeSwatch(t);
+    flashColorPickers();
     onChange(state);
   });
 
@@ -164,6 +186,7 @@ export function initControls(onChange) {
   const t = THEMES['noir'];
   document.getElementById('bg_hex').value = t.bg;
   document.getElementById('fg_hex').value = t.fg;
+  updateThemeSwatch(t);
 
   // ── Gamma + equalize warning ───────────────────────────
   const gammaWarn = document.getElementById('gamma-warn');
@@ -220,6 +243,8 @@ export function initControls(onChange) {
     document.getElementById('fg_hex').value = defTheme.fg;
     document.getElementById('multiscale-sub').style.display = 'none';
     document.getElementById('saliency-sub').style.display = 'none';
+    updateThemeSwatch(defTheme);
+    flashColorPickers();
     updateGammaWarn();
     onChange(state);
   });
