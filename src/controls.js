@@ -205,6 +205,36 @@ export function initControls(onChange) {
   document.getElementById('equalize').addEventListener('change', updateGammaWarn);
   updateGammaWarn();
 
+  // ── Tone Presets (LUTs) ────────────────────────────────
+  const TONE_PRESETS = {
+    default: { contrast: 1.20, gamma: 0.80, exposure: 1.0, edgeWeight: 0.25, sharpen: 0.30, equalize: true },
+    high_contrast: { contrast: 2.0, gamma: 0.70, exposure: 1.1, edgeWeight: 0.50, sharpen: 0.50, equalize: true },
+    muted: { contrast: 0.80, gamma: 1.20, exposure: 1.0, edgeWeight: 0.10, sharpen: 0.10, equalize: false },
+    dark: { contrast: 1.50, gamma: 0.50, exposure: 0.80, edgeWeight: 0.80, sharpen: 0.60, equalize: true },
+    bright: { contrast: 1.10, gamma: 1.50, exposure: 1.30, edgeWeight: 0.20, sharpen: 0.30, equalize: false }
+  };
+
+  const presetDropdown = document.getElementById('tone_preset');
+  if (presetDropdown) {
+    presetDropdown.addEventListener('change', (e) => {
+      const preset = TONE_PRESETS[e.target.value];
+      if (!preset) return;
+      
+      Object.assign(state, preset);
+      
+      // Update DOM
+      ['contrast', 'gamma', 'exposure', 'edgeWeight', 'sharpen'].forEach(k => {
+        const domId = k === 'edgeWeight' ? 'edge_weight' : k;
+        document.getElementById(domId).value = preset[k];
+        document.getElementById(`val-${domId}`).textContent = preset[k].toFixed(2);
+      });
+      document.getElementById('equalize').checked = preset.equalize;
+      updateGammaWarn();
+      
+      onChange(state);
+    });
+  }
+
   // ── Reset to defaults ──────────────────────────────────
   document.getElementById('btn-reset').addEventListener('click', () => {
     Object.assign(state, DEFAULT_PARAMS);
@@ -242,6 +272,7 @@ export function initControls(onChange) {
     });
     document.getElementById('charset').value = DEFAULT_PARAMS.charset;
     document.getElementById('theme').value = DEFAULT_PARAMS.theme;
+    document.getElementById('tone_preset').value = 'default';
     const defTheme = THEMES[DEFAULT_PARAMS.theme];
     document.getElementById('bg_hex').value = defTheme.bg;
     document.getElementById('fg_hex').value = defTheme.fg;

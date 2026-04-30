@@ -7,10 +7,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Fira+Mono:wght@400;500&family=Source+Code+Pro:wght@400;500&family=Roboto+Mono:wght@400;500&family=JetBrains+Mono:wght@400;500&family=Inconsolata:wght@400;500&family=Oxygen+Mono&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="styles/main.css?v=6"/>
-  <link rel="stylesheet" href="styles/sidebar.css?v=6"/>
-  <link rel="stylesheet" href="styles/controls.css?v=6"/>
-  <link rel="stylesheet" href="styles/preview.css?v=6"/>
+  <link rel="stylesheet" href="styles/main.css?v=7"/>
+  <link rel="stylesheet" href="styles/sidebar.css?v=7"/>
+  <link rel="stylesheet" href="styles/controls.css?v=7"/>
+  <link rel="stylesheet" href="styles/preview.css?v=7"/>
 </head>
 <body>
 <div id="app">
@@ -90,6 +90,16 @@
           </span>
         </div>
         <div class="section-body">
+          <div class="ctrl">
+            <div class="ctrl-label">Tone Preset</div>
+            <select id="tone_preset" class="select-css">
+              <option value="default">Default</option>
+              <option value="high_contrast">High Contrast</option>
+              <option value="muted">Muted / Faded</option>
+              <option value="dark">Dark & Moody</option>
+              <option value="bright">High Key (Bright)</option>
+            </select>
+          </div>
           <div class="ctrl">
             <div class="ctrl-label">Contrast <span class="ctrl-val" id="val-contrast">1.20</span></div>
             <input type="range" id="contrast" min="0.5" max="3.5" step="0.1" value="1.2"/>
