@@ -1,8 +1,3 @@
-// ═══════════════════════════════════════════════════════════
-//  ASCII Art Engine — JS port of engine.py
-//  All processing runs in-browser via Canvas API + TypedArrays
-// ═══════════════════════════════════════════════════════════
-
 export const RAW_CHARSETS = {
   full: ' .\'`^",:;Il!i><~+_-?][}{1)(|/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$',
   minimal: ' .:-=+*#%@',
@@ -28,7 +23,6 @@ export const THEMES = {
   colour_amber: { bg: '#0f0900', fg: '#ffb347', colour: true, label: 'Colour Warm' },
 };
 
-// ── Density cache ──────────────────────────────────────────
 const _densityCache = new Map();
 
 export function measureCharDensity(chars, size = 16) {
@@ -55,7 +49,6 @@ export function measureCharDensity(chars, size = 16) {
   return sorted;
 }
 
-// ── Image loading ──────────────────────────────────────────
 export function loadImageFromFile(file) {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -77,7 +70,6 @@ export function imageToRGBA(img, maxDim = 1200) {
   return { data: ctx.getImageData(0, 0, w, h), w, h };
 }
 
-// ── Luminance ──────────────────────────────────────────────
 export function computeBrightness(rgba, w, h) {
   // BT.709 luma
   const out = new Float32Array(w * h);
@@ -88,7 +80,6 @@ export function computeBrightness(rgba, w, h) {
   return out;
 }
 
-// ── Bilinear resize ────────────────────────────────────────
 export function resizeGray(src, srcW, srcH, dstW, dstH) {
   const canvas = new OffscreenCanvas(srcW, srcH);
   const ctx = canvas.getContext('2d');
@@ -175,11 +166,9 @@ export function applyVignette(b, w, h, strength) {
   return out;
 }
 
-// ── Film grain ─────────────────────────────────────────────
 export function applyFilmGrain(b, amount) {
   if (amount === 0) return b;
   const out = new Float32Array(b.length);
-  // Simple seeded LCG for reproducibility
   let seed = 42;
   const rng = () => { seed = (seed * 1664525 + 1013904223) & 0xffffffff; return (seed >>> 0) / 0xffffffff; };
   for (let i = 0; i < b.length; i++) {
@@ -189,7 +178,6 @@ export function applyFilmGrain(b, amount) {
   return out;
 }
 
-// ── Sobel operator ─────────────────────────────────────────
 export function sobel(b, w, h) {
   const gx = new Float32Array(w * h);
   const gy = new Float32Array(w * h);
@@ -210,7 +198,6 @@ export function sobel(b, w, h) {
   return { gx, gy };
 }
 
-// ── Edge-biased brightness ─────────────────────────────────
 export function edgeBiasedBrightness(b, w, h, edgeWeight) {
   if (edgeWeight === 0) return b;
   const { gx, gy } = sobel(b, w, h);
@@ -228,7 +215,6 @@ export function edgeBiasedBrightness(b, w, h, edgeWeight) {
   return out;
 }
 
-// ── Floyd-Steinberg dithering ──────────────────────────────
 export function floydSteinberg(b, w, h, nLevels) {
   const img = new Float64Array(b);
   const step = 255 / Math.max(nLevels - 1, 1);
@@ -252,10 +238,8 @@ export function floydSteinberg(b, w, h, nLevels) {
   return out;
 }
 
-// ── Sharpen ────────────────────────────────────────────────
 export function sharpenImage(rgba, w, h, strength) {
   if (strength === 0) return rgba;
-  // Unsharp mask via canvas filter
   const canvas = new OffscreenCanvas(w, h);
   const ctx = canvas.getContext('2d');
   ctx.putImageData(rgba, 0, 0);
@@ -276,7 +260,6 @@ export function sharpenImage(rgba, w, h, strength) {
   return result;
 }
 
-// ── Brightness → chars ─────────────────────────────────────
 export function brightnessToChars(brightness, w, h, chars, invert = false) {
   const n = chars.length - 1;
   const grid = [];
@@ -293,22 +276,18 @@ export function brightnessToChars(brightness, w, h, chars, invert = false) {
   return grid;
 }
 
-// ── Hex utils ──────────────────────────────────────────────
 export function hexToRgb(hex) {
   const h = hex.replace('#', '');
   return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
 }
 
-// ── Multi-scale enhancement ────────────────────────────────
 export function applyMultiscaleEnhancement(bright, w, h, boost) {
   if (boost <= 0) return { base: bright, d0: new Float32Array(w * h), d1: new Float32Array(w * h), d2: new Float32Array(w * h) };
 
   const gaussianBlur = (src, sigma) => {
-    // Simple box-blur approximation of Gaussian
     const radius = Math.max(1, Math.round(sigma * 2));
     const tmp = new Float32Array(w * h);
     const out = new Float32Array(w * h);
-    // horizontal pass
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
         let sum = 0, count = 0;
@@ -319,7 +298,6 @@ export function applyMultiscaleEnhancement(bright, w, h, boost) {
         tmp[y * w + x] = sum / count;
       }
     }
-    // vertical pass
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
         let sum = 0, count = 0;
@@ -360,7 +338,6 @@ export function applyMultiscaleEnhancement(bright, w, h, boost) {
     out[i] = g3[i] + d2[i] * (1 + boost * 0.5) + d1[i] * (1 + boost) + d0[i] * (1 + boost * 1.5);
   }
 
-  // Normalize to 0-255
   let mn = Infinity, mx = -Infinity;
   for (let i = 0; i < out.length; i++) { if (out[i] < mn) mn = out[i]; if (out[i] > mx) mx = out[i]; }
   const range = mx - mn + 1e-8;
@@ -369,11 +346,9 @@ export function applyMultiscaleEnhancement(bright, w, h, boost) {
   return { base: out, d0, d1, d2 };
 }
 
-// ── Saliency ────────────────────────────────────────────────
 export function computeSaliency(bright, cols, rows) {
   const sal = new Float32Array(cols * rows);
   const cellArea = Math.max(1, bright.length / (cols * rows));
-  // Use variance of brightness as proxy for saliency
   for (let y = 0; y < rows; y++) {
     for (let x = 0; x < cols; x++) {
       const v = bright[y * cols + x] / 255;
@@ -496,7 +471,6 @@ function _cellStructureTensor(imgArray, srcW, srcH, rows, cols) {
   const bright = computeBrightness(imgArray, srcW, srcH);
   const grayHi = resizeGray(bright, srcW, srcH, targetW, targetH);
 
-  // Scale to 0-1
   for (let i = 0; i < grayHi.length; i++) grayHi[i] /= 255.0;
 
   const { gx: Ix, gy: Iy } = sobel(grayHi, targetW, targetH);
@@ -534,7 +508,6 @@ function _cellStructureTensor(imgArray, srcW, srcH, rows, cols) {
 }
 
 export function frequencyAwareChars(imgArray, srcW, srcH, chars, cols, rows, charAspect = 0.45, invert = false, cohThresh = 0.45, engThresh = 0.10) {
-  // Baseline grid
   const bright = computeBrightness(imgArray, srcW, srcH);
   let small = resizeGray(bright, srcW, srcH, cols, rows);
   const rawSmall = new Float32Array(small);
@@ -557,15 +530,12 @@ export function frequencyAwareChars(imgArray, srcW, srcH, chars, cols, rows, cha
       if (invert) luma = 1.0 - luma;
 
       if (engN < engThresh) {
-        // Flat
         const cIdx = Math.max(0, Math.min(_FAM_FLAT.length - 1, Math.round(luma * (_FAM_FLAT.length - 1))));
         charGrid[y][x] = _FAM_FLAT[cIdx];
       } else if (coh[idx] < cohThresh) {
-        // Isotropic
         const cIdx = Math.max(0, Math.min(_FAM_ISO.length - 1, Math.round(luma * (_FAM_ISO.length - 1))));
         charGrid[y][x] = _FAM_ISO[cIdx];
       } else {
-        // Directional
         const bin = Math.floor(ori[idx] / 45.0) % 4;
         charGrid[y][x] = dirChars[bin];
       }
@@ -807,26 +777,21 @@ export function runPipeline(img, params) {
     fusionV6, freqAware, glyphMatch, glyphErrDiff,
   } = params;
 
-  // 1. Load RGBA + sharpen
   const { data: rgba, w: srcW, h: srcH } = img;
   const sharpened = sharpenImage(rgba, srcW, srcH, sharpen);
 
-  // 2. Brightness + resize
   let bright = computeBrightness(sharpened, srcW, srcH);
   const { small: resized, rows, cols: gridCols } = resizeForAscii(bright, srcW, srcH, cols, charAspect);
   bright = resized;
 
-  // 3. Multi-scale
   let msCtx = null;
   if (multiscale || fusionV6) {
     msCtx = applyMultiscaleEnhancement(bright, gridCols, rows, multiscaleBoost);
     if (!fusionV6 || multiscale) bright = msCtx.base; // Only apply base enhancement if explicitly multiscale
   }
 
-  // 4. Colour data
   const colourResized = colourMode ? resizeColour(sharpened, srcW, srcH, gridCols, charAspect) : null;
 
-  // 5. Tone pipeline
   const rawBright = new Float32Array(bright);
   if (equalize) bright = equalizeHistogram(bright);
   bright = applyGamma(bright, gamma);
@@ -835,13 +800,11 @@ export function runPipeline(img, params) {
   bright = applyFilmGrain(bright, grain);
   bright = edgeBiasedBrightness(bright, gridCols, rows, edgeWeight);
 
-  // 6. Saliency
   if (saliencyAware) {
     const sal = computeSaliency(bright, gridCols, rows);
     bright = applySaliencyToBrightness(bright, sal, gridCols, rows, saliencyBoost);
   }
 
-  // 7. Char mapping
   const chars = measureCharDensity(RAW_CHARSETS[charset] || RAW_CHARSETS.full);
   let charGrid;
 

@@ -1,15 +1,16 @@
-// ═══════════════════════════════════════════════════════════
-//  renderer.js — ties engine to UI, handles export
-// ═══════════════════════════════════════════════════════════
-
 import {
-  loadImageFromFile, imageToRGBA, runPipeline,
-  renderToHTML, renderToSVG, renderToTxt, renderToPNG, renderToPDF,
+  imageToRGBA,
+  loadImageFromFile,
+  renderToHTML,
+  renderToPDF,
+  renderToPNG,
+  renderToSVG, renderToTxt,
+  runPipeline,
   THEMES,
 } from './engine.js';
 
-let currentImg = null;   // { data: ImageData, w, h }
-let lastResult = null;   // { charGrid, rows, cols, brightness, colourData }
+let currentImg = null;
+let lastResult = null;
 let lastParams = null;
 
 export function setCurrentImage(img) { currentImg = img; }
@@ -26,32 +27,32 @@ export async function render(params) {
   const theme = THEMES[params.theme] || THEMES.noir;
 
   const enriched = {
-    cols:           params.cols,
-    charset:        params.charset,
-    charAspect:     params.charAspect,
-    sharpen:        params.sharpen,
-    contrast:       params.contrast,
-    gamma:          params.gamma,
-    edgeWeight:     params.edgeWeight,
-    equalize:       params.equalize,
-    dither:         params.dither,
-    invert:         params.invert,
-    vignette:       params.vignette,
-    grain:          params.grain,
-    attenuation:    params.attenuation,
-    colourMode:     theme.colour,
-    fgHex:          params.fgHex || theme.fg,
-    bgHex:          params.bgHex || theme.bg,
-    fontSize:       params.fontSize,
-    outputFont:     params.outputFont,
-    multiscale:     params.multiscale,
+    cols: params.cols,
+    charset: params.charset,
+    charAspect: params.charAspect,
+    sharpen: params.sharpen,
+    contrast: params.contrast,
+    gamma: params.gamma,
+    edgeWeight: params.edgeWeight,
+    equalize: params.equalize,
+    dither: params.dither,
+    invert: params.invert,
+    vignette: params.vignette,
+    grain: params.grain,
+    attenuation: params.attenuation,
+    colourMode: theme.colour,
+    fgHex: params.fgHex || theme.fg,
+    bgHex: params.bgHex || theme.bg,
+    fontSize: params.fontSize,
+    outputFont: params.outputFont,
+    multiscale: params.multiscale,
     multiscaleBoost: params.multiscaleBoost,
-    saliencyAware:  params.saliencyAware,
-    saliencyBoost:  params.saliencyBoost,
-    fusionV6:       params.fusionV6,
-    freqAware:      params.freqAware,
-    glyphMatch:     params.glyphMatch,
-    glyphErrDiff:   params.glyphErrDiff,
+    saliencyAware: params.saliencyAware,
+    saliencyBoost: params.saliencyBoost,
+    fusionV6: params.fusionV6,
+    freqAware: params.freqAware,
+    glyphMatch: params.glyphMatch,
+    glyphErrDiff: params.glyphErrDiff,
   };
 
   lastResult = runPipeline(currentImg, enriched);

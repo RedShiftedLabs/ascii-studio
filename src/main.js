@@ -7,12 +7,10 @@ import {
   triggerDownload, triggerDownloadText,
 } from './renderer.js';
 
-// ── State ──────────────────────────────────────────────────
 let currentFile = null;
 let params = { ...DEFAULT_PARAMS };
 let renderDebounce = null;
 
-// ── DOM refs ───────────────────────────────────────────────
 const dropzone = document.getElementById('dropzone');
 const fileInput = document.getElementById('file-input');
 const resultWrap = document.getElementById('result');
@@ -33,13 +31,11 @@ const exportBtns = document.querySelectorAll('.export-btn');
 const toastEl = document.getElementById('toast');
 const toastMsg = document.getElementById('toast-msg');
 
-// ── Init controls ──────────────────────────────────────────
 params = initControls((newParams) => {
   Object.assign(params, newParams);
   scheduleRender();
 });
 
-// ── File handling ──────────────────────────────────────────
 fileInput.addEventListener('change', () => onFile(fileInput.files[0]));
 dropzone.addEventListener('click', () => fileInput.click());
 dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('over'); });
@@ -102,7 +98,6 @@ async function doRender() {
 
 btnRender.addEventListener('click', doRender);
 
-// ── Export buttons ─────────────────────────────────────────
 document.getElementById('btn-html').addEventListener('click', async () => {
   const svg = exportSVG();
   if (!svg) return;
@@ -145,7 +140,6 @@ document.getElementById('btn-pdf').addEventListener('click', async () => {
   } catch (e) { setStatus('PDF error: ' + e.message, 'err'); }
 });
 
-// ── Status / busy helpers ──────────────────────────────────
 function setStatus(msg, cls = '') {
   statusText.textContent = msg;
   statusDot.className = 'status-dot' + (cls ? ' ' + cls : '');
@@ -175,14 +169,12 @@ function setBusy(on) {
   }
 }
 
-// ── Toast ──────────────────────────────────────────────────
 function toast(msg) {
   toastMsg.textContent = msg;
   toastEl.classList.add('show');
   setTimeout(() => toastEl.classList.remove('show'), 2200);
 }
 
-// Override toast function reference properly
 window._toast = (msg) => {
   toastMsg.textContent = msg;
   document.getElementById('toast').classList.add('show');

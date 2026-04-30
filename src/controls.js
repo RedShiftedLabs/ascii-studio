@@ -1,7 +1,3 @@
-// ═══════════════════════════════════════════════════════════
-//  controls.js — sidebar panel logic, state, and DOM binding
-// ═══════════════════════════════════════════════════════════
-
 import { THEMES } from './engine.js';
 
 export const DEFAULT_PARAMS = {
@@ -37,7 +33,6 @@ export const DEFAULT_PARAMS = {
 export function initControls(onChange) {
   const state = { ...DEFAULT_PARAMS };
 
-  // ── Populate theme select ──────────────────────────────
   const themeSelect = document.getElementById('theme');
   for (const [k, v] of Object.entries(THEMES)) {
     const opt = document.createElement('option');
@@ -46,7 +41,6 @@ export function initControls(onChange) {
   }
   themeSelect.value = 'noir';
 
-  // ── Helper: bind slider ────────────────────────────────
   function bindSlider(id, key, fmt = v => parseFloat(v).toFixed(2)) {
     const el = document.getElementById(id);
     const lbl = document.getElementById('val-' + id);
@@ -60,7 +54,6 @@ export function initControls(onChange) {
     });
   }
 
-  // ── Helper: bind select ────────────────────────────────
   function bindSelect(id, key) {
     const el = document.getElementById(id);
     if (!el) return;
@@ -68,7 +61,6 @@ export function initControls(onChange) {
     el.addEventListener('change', () => { state[key] = el.value; onChange(state); });
   }
 
-  // ── Helper: bind checkbox ──────────────────────────────
   function bindCheckbox(id, key, subCtrlId = null) {
     const el = document.getElementById(id);
     if (!el) return;
@@ -82,13 +74,11 @@ export function initControls(onChange) {
     });
   }
 
-  // ── Image section ──────────────────────────────────────
   bindSlider('cols', 'cols', v => v);
   bindSelect('charset', 'charset');
   bindSlider('char_aspect', 'charAspect');
   bindSlider('sharpen', 'sharpen');
 
-  // ── Tone section ───────────────────────────────────────
   bindSlider('contrast', 'contrast');
   bindSlider('gamma', 'gamma');
   bindSlider('edge_weight', 'edgeWeight');
@@ -98,7 +88,6 @@ export function initControls(onChange) {
   bindCheckbox('multiscale', 'multiscale', 'multiscale-sub');
   bindSlider('multiscale_boost', 'multiscaleBoost');
 
-  // ── Aesthetic section ──────────────────────────────────
   themeSelect.addEventListener('change', () => {
     const t = THEMES[themeSelect.value];
     if (!t) return;
@@ -122,7 +111,6 @@ export function initControls(onChange) {
     state.fgHex = e.target.value; onChange(state);
   });
 
-  // ── Advanced section ───────────────────────────────────
   bindCheckbox('saliency_aware', 'saliencyAware', 'saliency-sub');
   bindSlider('saliency_boost', 'saliencyBoost');
   bindCheckbox('fusion_v6', 'fusionV6');
@@ -130,7 +118,6 @@ export function initControls(onChange) {
   bindCheckbox('glyph_match', 'glyphMatch');
   bindCheckbox('glyph_err_diff', 'glyphErrDiff');
 
-  // ── Display section ────────────────────────────────────
   bindSlider('font_size', 'fontSize', v => v);
   const fontSelect = document.getElementById('output_font');
   fontSelect.addEventListener('change', () => {
@@ -139,17 +126,14 @@ export function initControls(onChange) {
     onChange(state);
   });
 
-  // ── Font preview ────────────────────────────────────────
   updateFontPreview(state.outputFont);
 
-  // ── Section accordion ──────────────────────────────────
   document.querySelectorAll('.section-head').forEach(head => {
     head.addEventListener('click', () => {
       head.closest('.section').classList.toggle('open');
     });
   });
 
-  // Trigger theme init
   const t = THEMES['noir'];
   document.getElementById('bg_hex').value = t.bg;
   document.getElementById('fg_hex').value = t.fg;
@@ -163,21 +147,20 @@ function updateFontPreview(font) {
 }
 
 export function getParams() {
-  // Returns current state — called by renderer
   const state = {};
-  const sliders = ['cols','char_aspect','sharpen','contrast','gamma','edge_weight',
-    'attenuation','vignette','grain','font_size','multiscale_boost','saliency_boost'];
+  const sliders = ['cols', 'char_aspect', 'sharpen', 'contrast', 'gamma', 'edge_weight',
+    'attenuation', 'vignette', 'grain', 'font_size', 'multiscale_boost', 'saliency_boost'];
   sliders.forEach(id => {
     const el = document.getElementById(id);
     if (el) state[id] = parseFloat(el.value);
   });
-  const selects = ['charset','theme','output_font'];
+  const selects = ['charset', 'theme', 'output_font'];
   selects.forEach(id => {
     const el = document.getElementById(id);
     if (el) state[id] = el.value;
   });
-  const checks = ['equalize','dither','invert','multiscale','saliency_aware',
-    'fusion_v6','freq_aware','glyph_match','glyph_err_diff'];
+  const checks = ['equalize', 'dither', 'invert', 'multiscale', 'saliency_aware',
+    'fusion_v6', 'freq_aware', 'glyph_match', 'glyph_err_diff'];
   checks.forEach(id => {
     const el = document.getElementById(id);
     if (el) state[id] = el.checked;
