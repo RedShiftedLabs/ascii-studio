@@ -97,7 +97,7 @@ async function doRender() {
     resultInner.innerHTML = html;
     dropzone.style.display = 'none';
     resultWrap.style.display = 'block';
-    exportBtns.forEach(b => b.style.display = '');
+    exportBtns.forEach(b => b.style.display = ''); // only show on success
     setStatus(`Done · ${params.cols} cols · ${params.theme}`, 'ok');
   } catch (e) {
     setStatus('Error: ' + e.message, 'err');
@@ -163,6 +163,7 @@ function setBusy(on) {
   progressBar.style.display = on ? 'block' : 'none';
 
   if (on) {
+    clearInterval(btnRender._iv); // Clear any leaked interval from a previous call
     let w = 0;
     const iv = setInterval(() => {
       w = Math.min(w + Math.random() * 5, 88);

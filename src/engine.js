@@ -349,7 +349,6 @@ export function applyMultiscaleEnhancement(bright, w, h, boost) {
 
 export function computeSaliency(bright, cols, rows) {
   const sal = new Float32Array(cols * rows);
-  const cellArea = Math.max(1, bright.length / (cols * rows));
   for (let y = 0; y < rows; y++) {
     for (let x = 0; x < cols; x++) {
       const v = bright[y * cols + x] / 255;
@@ -377,7 +376,9 @@ export function applySaliencyToBrightness(bright, sal, w, h, boost) {
 const _glyphAtlasCache = new Map();
 
 function _buildGlyphAtlas(chars, fontSize = 13) {
-  const key = chars + '_' + fontSize;
+  // Normalize key: sort chars so atlas cache aligns with density cache key order.
+  const sortedChars = [...chars].sort().join('');
+  const key = sortedChars + '_' + fontSize;
   if (_glyphAtlasCache.has(key)) return _glyphAtlasCache.get(key);
 
   const canvas = new OffscreenCanvas(fontSize * 2, fontSize * 2);
