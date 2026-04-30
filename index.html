@@ -51,31 +51,27 @@
         <div class="section-body">
           <div class="ctrl">
             <div class="ctrl-label">Columns <span class="ctrl-val" id="val-cols">120</span></div>
-            <input type="range" id="cols" min="40" max="240" step="10" value="120"/>
+            <input type="range" id="cols" min="40" max="400" step="10" value="120"/>
           </div>
           <div class="ctrl">
             <div class="ctrl-label">Charset</div>
             <select id="charset">
-              <option value="full">Full density</option>
-              <option value="minimal">Minimal</option>
-              <option value="blocks">Blocks ░▒▓</option>
-              <option value="dots">Dots ·○●</option>
-              <option value="hatching">Hatching</option>
-              <option value="geometric">Geometric ◆▲</option>
-              <option value="braille">Braille ⠿ (hi-res)</option>
-              <option value="lineart">Line art</option>
-              <option value="edges">Edges only</option>
-              <option value="binary">Binary 0/1</option>
-              <option value="numbers">Numbers 0–9</option>
+              <option value="full">Full density &nbsp; .\'`Il!i+_-/?|#@$</option>
+              <option value="minimal">Minimal &nbsp; .:-=+*#%@</option>
+              <option value="blocks">Blocks &nbsp; ░▒▓█</option>
+              <option value="dots">Dots &nbsp; ·∘○◉●</option>
+              <option value="hatching">Hatching &nbsp; ─━═╬+#@</option>
+              <option value="geometric">Geometric &nbsp; ▪◆◇■□▲△●</option>
+              <option value="braille">Braille (hi-res) &nbsp; ⠁⠃⠇⠿</option>
+              <option value="lineart">Line art &nbsp; .,:;|/\()[]{}#@</option>
+              <option value="edges">Edges &nbsp; .-+|/\xX#@</option>
+              <option value="binary">Binary &nbsp; 0 1</option>
+              <option value="numbers">Numbers &nbsp; 0–9</option>
             </select>
           </div>
           <div class="ctrl">
-            <div class="ctrl-label">Char aspect <span class="ctrl-val" id="val-char_aspect">0.45</span></div>
-            <input type="range" id="char_aspect" min="0.3" max="0.7" step="0.01" value="0.45"/>
-          </div>
-          <div class="ctrl">
-            <div class="ctrl-label">Sharpen <span class="ctrl-val" id="val-sharpen">0.30</span></div>
-            <input type="range" id="sharpen" min="0" max="1" step="0.05" value="0.30"/>
+            <div class="ctrl-label">Height ratio <span class="ctrl-val" id="val-char_aspect">0.45</span></div>
+            <input type="range" id="char_aspect" min="0.3" max="0.7" step="0.01" value="0.45" title="Adjust if output looks too tall or too wide. 0.45 suits most monospace fonts."/>
           </div>
         </div>
       </div>
@@ -105,6 +101,10 @@
           <div class="ctrl">
             <div class="ctrl-label">Edge weight <span class="ctrl-val" id="val-edge_weight">0.25</span></div>
             <input type="range" id="edge_weight" min="0" max="1" step="0.05" value="0.25"/>
+          </div>
+          <div class="ctrl">
+            <div class="ctrl-label">Sharpen <span class="ctrl-val" id="val-sharpen">0.30</span></div>
+            <input type="range" id="sharpen" min="0" max="1" step="0.05" value="0.30"/>
           </div>
           <div class="toggle-row">
             <input type="checkbox" id="equalize" checked/>
