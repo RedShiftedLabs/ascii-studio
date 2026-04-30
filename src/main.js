@@ -31,7 +31,7 @@ const btnLabel    = document.getElementById('btn-label');
 const btnSpinner  = document.getElementById('render-spinner');
 const btnIcon     = document.getElementById('btn-icon');
 const exportBtns  = document.querySelectorAll('.export-btn');
-const toast       = document.getElementById('toast');
+const toastEl     = document.getElementById('toast');
 const toastMsg    = document.getElementById('toast-msg');
 
 // ── Init controls ──────────────────────────────────────────
@@ -177,8 +177,8 @@ function setBusy(on) {
 // ── Toast ──────────────────────────────────────────────────
 function toast(msg) {
   toastMsg.textContent = msg;
-  toast.classList.add('show');
-  setTimeout(() => toast.classList.remove('show'), 2200);
+  toastEl.classList.add('show');
+  setTimeout(() => toastEl.classList.remove('show'), 2200);
 }
 
 // Override toast function reference properly
