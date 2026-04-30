@@ -134,6 +134,10 @@ export function initControls(onChange) {
     });
   });
 
+  // Open IMAGE and TONE sections by default
+  document.getElementById('sec-image').classList.add('open');
+  document.getElementById('sec-tone').classList.add('open');
+
   const t = THEMES['noir'];
   document.getElementById('bg_hex').value = t.bg;
   document.getElementById('fg_hex').value = t.fg;
