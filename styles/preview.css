@@ -1,0 +1,112 @@
+/* ═══════════════════════════════════════════════════════════
+   preview.css — drop zone and result preview area
+═══════════════════════════════════════════════════════════ */
+
+/* ── Scroll wrapper ── */
+#preview-wrap {
+  flex: 1;
+  overflow: auto;
+  padding: 24px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+#preview-wrap::-webkit-scrollbar { width: 5px; height: 5px; }
+#preview-wrap::-webkit-scrollbar-track { background: transparent; }
+#preview-wrap::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 3px; }
+
+/* ── Drop zone ── */
+#dropzone {
+  width: 100%;
+  max-width: 540px;
+  border: 1px dashed var(--border-2);
+  border-radius: 14px;
+  padding: 72px 40px;
+  text-align: center;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.18s, background 0.18s;
+}
+
+/* Corner accent marks */
+#dropzone::before,
+#dropzone::after {
+  content: '';
+  position: absolute;
+  width: 18px; height: 18px;
+  border-color: var(--accent);
+  border-style: solid;
+  border-width: 0;
+  border-radius: 3px;
+  opacity: 0;
+  transition: opacity 0.18s, border-width 0.18s;
+}
+#dropzone::before { top: 12px; left: 12px; border-top-width: 2px; border-left-width: 2px; border-radius: 3px 0 0 0; }
+#dropzone::after  { bottom: 12px; right: 12px; border-bottom-width: 2px; border-right-width: 2px; border-radius: 0 0 3px 0; }
+
+#dropzone:hover::before,
+#dropzone:hover::after,
+#dropzone.over::before,
+#dropzone.over::after {
+  border-width: 2px;
+  opacity: 1;
+}
+#dropzone:hover,
+#dropzone.over {
+  border-color: var(--accent-border);
+  background: var(--accent-dim);
+}
+
+#dropzone input[type=file] { display: none; }
+
+.dz-icon {
+  width: 52px; height: 52px;
+  margin: 0 auto 18px;
+  border: 1px solid var(--border-2);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-2);
+  transition: border-color 0.18s, background 0.18s;
+}
+.dz-icon svg {
+  width: 22px; height: 22px;
+  stroke: var(--text-3);
+  transition: stroke 0.18s;
+}
+#dropzone:hover .dz-icon,
+#dropzone.over .dz-icon {
+  border-color: var(--accent-border);
+  background: var(--accent-dim);
+}
+#dropzone:hover .dz-icon svg,
+#dropzone.over .dz-icon svg {
+  stroke: var(--accent);
+}
+
+.dz-main {
+  font-size: 13px;
+  color: var(--text-2);
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+.dz-main span {
+  color: var(--accent);
+  font-weight: 600;
+}
+.dz-sub {
+  font-family: 'Geist Mono', monospace;
+  font-size: 10px;
+  color: var(--text-3);
+  letter-spacing: 0.5px;
+}
+
+/* ── Result ── */
+#result {
+  width: 100%;
+}
+#result-inner {
+  width: 100%;
+}
