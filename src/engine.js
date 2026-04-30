@@ -122,7 +122,6 @@ export function resizeColour(rgba, srcW, srcH, cols, charAspect = 0.45) {
   return { data: dctx.getImageData(0, 0, cols, rows), rows, cols };
 }
 
-// ── Histogram equalization ─────────────────────────────────
 export function equalizeHistogram(b) {
   const out = new Float32Array(b.length);
   const hist = new Int32Array(256);
@@ -149,6 +148,14 @@ export function applyGamma(b, gamma) {
 export function applyContrast(b, factor) {
   const out = new Float32Array(b.length);
   for (let i = 0; i < b.length; i++) out[i] = Math.max(0, Math.min(255, factor * (b[i] - 128) + 128));
+  return out;
+}
+
+// ── Exposure ───────────────────────────────────────────────
+export function applyExposure(b, multiplier) {
+  if (multiplier === 1) return b;
+  const out = new Float32Array(b.length);
+  for (let i = 0; i < b.length; i++) out[i] = Math.max(0, Math.min(255, b[i] * multiplier));
   return out;
 }
 
@@ -782,7 +789,7 @@ function loadScript(src) {
 
 export function runPipeline(img, params) {
   const {
-    cols, charset, contrast, gamma, edgeWeight, sharpen,
+    cols, charset, contrast, gamma, exposure, edgeWeight, sharpen,
     vignette, grain, equalize, dither, invert, charAspect,
     colourMode, attenuation, fgHex, bgHex, fontSize, outputFont,
     multiscale, multiscaleBoost,
@@ -810,6 +817,7 @@ export function runPipeline(img, params) {
 
   const rawBright = new Float32Array(bright);
   if (equalize) bright = equalizeHistogram(bright);
+  bright = applyExposure(bright, exposure || 1.0);
   bright = applyGamma(bright, gamma);
   bright = applyContrast(bright, contrast);
   bright = applyVignette(bright, gridCols, rows, vignette);

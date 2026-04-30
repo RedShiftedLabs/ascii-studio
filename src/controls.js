@@ -7,6 +7,7 @@ export const DEFAULT_PARAMS = {
   sharpen: 0.30,
   contrast: 1.20,
   gamma: 0.80,
+  exposure: 1.0,
   edgeWeight: 0.25,
   equalize: true,
   dither: true,
@@ -81,6 +82,7 @@ export function initControls(onChange) {
 
   bindSlider('contrast', 'contrast');
   bindSlider('gamma', 'gamma');
+  bindSlider('exposure', 'exposure');
   bindSlider('edge_weight', 'edgeWeight');
   bindCheckbox('equalize', 'equalize');
   bindCheckbox('dither', 'dither');
@@ -217,6 +219,8 @@ export function initControls(onChange) {
     document.getElementById('val-contrast').textContent = DEFAULT_PARAMS.contrast.toFixed(2);
     document.getElementById('gamma').value = DEFAULT_PARAMS.gamma;
     document.getElementById('val-gamma').textContent = DEFAULT_PARAMS.gamma.toFixed(2);
+    document.getElementById('exposure').value = DEFAULT_PARAMS.exposure;
+    document.getElementById('val-exposure').textContent = DEFAULT_PARAMS.exposure.toFixed(2);
     document.getElementById('edge_weight').value = DEFAULT_PARAMS.edgeWeight;
     document.getElementById('val-edge_weight').textContent = DEFAULT_PARAMS.edgeWeight.toFixed(2);
     document.getElementById('attenuation').value = DEFAULT_PARAMS.attenuation;
