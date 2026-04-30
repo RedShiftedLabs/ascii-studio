@@ -149,7 +149,6 @@ export function initControls(onChange) {
     updateFontPreview(fontSelect.value);
     onChange(state);
   });
-
   updateFontPreview(state.outputFont);
 
   document.querySelectorAll('.section-head').forEach(head => {
@@ -165,6 +164,65 @@ export function initControls(onChange) {
   const t = THEMES['noir'];
   document.getElementById('bg_hex').value = t.bg;
   document.getElementById('fg_hex').value = t.fg;
+
+  // ── Gamma + equalize warning ───────────────────────────
+  const gammaWarn = document.getElementById('gamma-warn');
+  function updateGammaWarn() {
+    if (!gammaWarn) return;
+    const warn = state.equalize && state.gamma > 1.4;
+    gammaWarn.style.display = warn ? 'inline' : 'none';
+  }
+  // Patch gamma and equalize bindings to also trigger warning
+  document.getElementById('gamma').addEventListener('input', () => {
+    state.gamma = parseFloat(document.getElementById('gamma').value);
+    updateGammaWarn();
+  });
+  document.getElementById('equalize').addEventListener('change', updateGammaWarn);
+  updateGammaWarn();
+
+  // ── Reset to defaults ──────────────────────────────────
+  document.getElementById('btn-reset').addEventListener('click', () => {
+    Object.assign(state, DEFAULT_PARAMS);
+    // Re-sync all DOM elements
+    document.getElementById('cols').value = DEFAULT_PARAMS.cols;
+    document.getElementById('val-cols').textContent = DEFAULT_PARAMS.cols;
+    document.getElementById('char_aspect').value = DEFAULT_PARAMS.charAspect;
+    document.getElementById('val-char_aspect').textContent = DEFAULT_PARAMS.charAspect;
+    document.getElementById('sharpen').value = DEFAULT_PARAMS.sharpen;
+    document.getElementById('val-sharpen').textContent = DEFAULT_PARAMS.sharpen.toFixed(2);
+    document.getElementById('contrast').value = DEFAULT_PARAMS.contrast;
+    document.getElementById('val-contrast').textContent = DEFAULT_PARAMS.contrast.toFixed(2);
+    document.getElementById('gamma').value = DEFAULT_PARAMS.gamma;
+    document.getElementById('val-gamma').textContent = DEFAULT_PARAMS.gamma.toFixed(2);
+    document.getElementById('edge_weight').value = DEFAULT_PARAMS.edgeWeight;
+    document.getElementById('val-edge_weight').textContent = DEFAULT_PARAMS.edgeWeight.toFixed(2);
+    document.getElementById('attenuation').value = DEFAULT_PARAMS.attenuation;
+    document.getElementById('val-attenuation').textContent = DEFAULT_PARAMS.attenuation.toFixed(2);
+    document.getElementById('vignette').value = DEFAULT_PARAMS.vignette;
+    document.getElementById('val-vignette').textContent = DEFAULT_PARAMS.vignette.toFixed(2);
+    document.getElementById('grain').value = DEFAULT_PARAMS.grain;
+    document.getElementById('val-grain').textContent = DEFAULT_PARAMS.grain.toFixed(2);
+    document.getElementById('multiscale_boost').value = DEFAULT_PARAMS.multiscaleBoost;
+    document.getElementById('val-multiscale_boost').textContent = DEFAULT_PARAMS.multiscaleBoost.toFixed(2);
+    document.getElementById('saliency_boost').value = DEFAULT_PARAMS.saliencyBoost;
+    document.getElementById('val-saliency_boost').textContent = DEFAULT_PARAMS.saliencyBoost.toFixed(2);
+    document.getElementById('font_size').value = DEFAULT_PARAMS.fontSize;
+    document.getElementById('val-font_size').textContent = DEFAULT_PARAMS.fontSize;
+    ['equalize','dither','invert','multiscale','saliency_aware',
+      'fusion_v6','freq_aware','glyph_match','glyph_err_diff'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.checked = !!DEFAULT_PARAMS[id.replace(/_([a-z])/g, (_, c) => c.toUpperCase())];
+    });
+    document.getElementById('charset').value = DEFAULT_PARAMS.charset;
+    document.getElementById('theme').value = DEFAULT_PARAMS.theme;
+    const defTheme = THEMES[DEFAULT_PARAMS.theme];
+    document.getElementById('bg_hex').value = defTheme.bg;
+    document.getElementById('fg_hex').value = defTheme.fg;
+    document.getElementById('multiscale-sub').style.display = 'none';
+    document.getElementById('saliency-sub').style.display = 'none';
+    updateGammaWarn();
+    onChange(state);
+  });
 
   return state;
 }
