@@ -97,8 +97,10 @@ async function doRender() {
     resultInner.innerHTML = html;
     dropzone.style.display = 'none';
     resultWrap.style.display = 'block';
+    document.getElementById('zoom-controls').style.display = 'flex';
     exportBtns.forEach(b => b.style.display = ''); // only show on success
     setStatus(`Done · ${params.cols} cols · ${params.theme}`, 'ok');
+    updateZoom();
   } catch (e) {
     setStatus('Error: ' + e.message, 'err');
     console.error(e);
@@ -106,6 +108,43 @@ async function doRender() {
   isRendering = false;
   setBusy(false);
 }
+
+// ── Zoom Logic ───────────────────────────────────────────────
+let currentZoom = null;
+let isFitToScreen = true;
+const zoomLevelTxt = document.getElementById('zoom-level');
+
+function updateZoom() {
+  if (!resultInner.querySelector('pre')) return;
+  resultInner.style.zoom = 1; // reset to measure
+  if (isFitToScreen) {
+    const pre = resultInner.querySelector('pre');
+    const wrap = document.getElementById('preview-wrap');
+    const availableW = wrap.clientWidth - 48;
+    const preW = pre.scrollWidth;
+    currentZoom = preW > 0 ? Math.min(1, availableW / preW) : 1;
+  }
+  resultInner.style.zoom = currentZoom;
+  zoomLevelTxt.textContent = isFitToScreen ? 'Fit' : Math.round(currentZoom * 100) + '%';
+}
+
+document.getElementById('btn-zoom-in').addEventListener('click', () => {
+  isFitToScreen = false;
+  currentZoom = Math.min(4, (currentZoom || 1) + 0.15);
+  updateZoom();
+});
+document.getElementById('btn-zoom-out').addEventListener('click', () => {
+  isFitToScreen = false;
+  currentZoom = Math.max(0.1, (currentZoom || 1) - 0.15);
+  updateZoom();
+});
+zoomLevelTxt.addEventListener('click', () => {
+  isFitToScreen = true;
+  updateZoom();
+});
+window.addEventListener('resize', () => {
+  if (isFitToScreen) updateZoom();
+});
 
 btnRender.addEventListener('click', doRender);
 
