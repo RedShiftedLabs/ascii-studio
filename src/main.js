@@ -81,7 +81,6 @@ document.getElementById('btn-remove-bg').addEventListener('click', async () => {
     }
     
     const config = {
-      publicPath: 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/dist/',
       progress: (key, current, total) => {
         if (key.includes('fetch') && total) {
           const pct = Math.round((current / total) * 100);
