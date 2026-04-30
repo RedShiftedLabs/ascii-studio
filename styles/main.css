@@ -303,3 +303,25 @@ body::before {
   transform: translateY(0);
   opacity: 1;
 }
+
+/* ── Mobile Layout ── */
+@media (max-width: 800px) {
+  #app {
+    flex-direction: column-reverse;
+  }
+  #main {
+    min-height: 50vh;
+  }
+  #topbar {
+    height: auto;
+    min-height: var(--topbar-h);
+    padding: 8px 10px;
+    flex-wrap: wrap;
+  }
+  #topbar-actions {
+    flex-wrap: wrap;
+  }
+  .btn span {
+    display: none;
+  }
+}

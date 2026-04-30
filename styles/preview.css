@@ -139,3 +139,13 @@
 #result-inner {
   width: 100%;
 }
+
+/* ── Mobile Layout ── */
+@media (max-width: 800px) {
+  #preview-wrap {
+    padding: 12px;
+  }
+  #dropzone {
+    padding: 40px 20px;
+  }
+}
