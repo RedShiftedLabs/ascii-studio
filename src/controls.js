@@ -32,7 +32,6 @@ export const DEFAULT_PARAMS = {
   freqAware: false,
   glyphMatch: false,
   glyphErrDiff: false,
-  gradientDir: false,
 };
 
 export function initControls(onChange) {
@@ -130,7 +129,6 @@ export function initControls(onChange) {
   bindCheckbox('freq_aware', 'freqAware');
   bindCheckbox('glyph_match', 'glyphMatch');
   bindCheckbox('glyph_err_diff', 'glyphErrDiff');
-  bindCheckbox('gradient_dir', 'gradientDir');
 
   // ── Display section ────────────────────────────────────
   bindSlider('font_size', 'fontSize', v => v);
@@ -179,7 +177,7 @@ export function getParams() {
     if (el) state[id] = el.value;
   });
   const checks = ['equalize','dither','invert','multiscale','saliency_aware',
-    'fusion_v6','freq_aware','glyph_match','glyph_err_diff','gradient_dir'];
+    'fusion_v6','freq_aware','glyph_match','glyph_err_diff'];
   checks.forEach(id => {
     const el = document.getElementById(id);
     if (el) state[id] = el.checked;

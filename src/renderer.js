@@ -52,7 +52,6 @@ export async function render(params) {
     freqAware:      params.freqAware,
     glyphMatch:     params.glyphMatch,
     glyphErrDiff:   params.glyphErrDiff,
-    gradientDir:    params.gradientDir,
   };
 
   lastResult = runPipeline(currentImg, enriched);

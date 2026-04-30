@@ -432,32 +432,6 @@ function _buildGlyphAtlas(chars, fontSize = 13) {
   return result;
 }
 
-const _DIR_CHARS = ['-', '/', '|', '\'];
-
-export function applyGradientDirection(charGrid, brightness, w, h, threshold = 0.25) {
-  const { gx, gy } = sobel(brightness, w, h);
-  const mag = new Float32Array(w * h);
-  let mx = 0;
-  for (let i = 0; i < w * h; i++) {
-    mag[i] = Math.sqrt(gx[i] * gx[i] + gy[i] * gy[i]);
-    if (mag[i] > mx) mx = mag[i];
-  }
-  if (mx === 0) return charGrid;
-
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const i = y * w + x;
-      if (mag[i] / mx > threshold) {
-        let angle = Math.atan2(gy[i], gx[i]) * 180 / Math.PI;
-        if (angle < 0) angle += 180;
-        const bin = Math.floor(angle / 45.0) % 4;
-        charGrid[y][x] = _DIR_CHARS[bin];
-      }
-    }
-  }
-  return charGrid;
-}
-
 export function glyphMatchChars(imgArray, srcW, srcH, chars, cols, charAspect = 0.45, fontSize = 13, invert = false) {
   const { atlas, cw, ch } = _buildGlyphAtlas(chars, fontSize);
   const rows = Math.max(1, Math.round(cols * (srcH / srcW) * charAspect));
@@ -600,7 +574,6 @@ export function frequencyAwareChars(imgArray, srcW, srcH, chars, cols, rows, cha
   return charGrid;
 }
 
-// ── Glyph Space Error Diffusion ────────────────────────────
 export function glyphSpaceErrorDiffusion(imgArray, srcW, srcH, chars, cols, rows, charAspect = 0.45, fontSize = 13, invert = false) {
   const { atlas, cw, ch } = _buildGlyphAtlas(chars, fontSize);
   const bright = computeBrightness(imgArray, srcW, srcH);
@@ -664,7 +637,6 @@ export function glyphSpaceErrorDiffusion(imgArray, srcW, srcH, chars, cols, rows
   return charGrid;
 }
 
-// ── V6 Fusion ──────────────────────────────────────────────
 export function fusedV6Chars(bright, rawBright, msCtx, cols, rows, chars, invert = false) {
   const d0 = msCtx.d0, d1 = msCtx.d1, d2 = msCtx.d2;
   const n = chars.length - 1;
@@ -699,7 +671,6 @@ export function fusedV6Chars(bright, rawBright, msCtx, cols, rows, chars, invert
   return charGrid;
 }
 
-// ── HTML renderer ──────────────────────────────────────────
 export function renderToHTML(charGrid, brightness, colourData, opts) {
   const { rows, cols, fgHex, bgHex, fontSize, attenuation, colourMode, outputFont } = opts;
   const [fr, fg, fb] = hexToRgb(fgHex);
@@ -731,7 +702,6 @@ export function renderToHTML(charGrid, brightness, colourData, opts) {
     `<pre style="font-family:${outputFont};font-size:${fontSize}px;line-height:1.15;margin:0;letter-spacing:0.3px;">${lines.join('\n')}</pre></div>`;
 }
 
-// ── SVG export ─────────────────────────────────────────────
 export function renderToSVG(charGrid, brightness, colourData, opts) {
   const { rows, cols, fgHex, bgHex, fontSize, attenuation, colourMode, outputFont } = opts;
   const [fr, fg, fb] = hexToRgb(fgHex);
@@ -773,12 +743,10 @@ export function renderToSVG(charGrid, brightness, colourData, opts) {
   return parts.join('\n');
 }
 
-// ── Plain text export ──────────────────────────────────────
 export function renderToTxt(charGrid) {
   return charGrid.map(row => row.join('')).join('\n');
 }
 
-// ── PNG export via canvas ──────────────────────────────────
 export async function renderToPNG(svgString) {
   const blob = new Blob([svgString], { type: 'image/svg+xml' });
   const url = URL.createObjectURL(blob);
@@ -797,9 +765,7 @@ export async function renderToPNG(svgString) {
   });
 }
 
-// ── PDF export via jsPDF ────────────────────────────────────
 export async function renderToPDF(svgString) {
-  // Dynamically load jsPDF + svg2pdf
   if (!window.jspdf) {
     await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
   }
@@ -831,7 +797,6 @@ function loadScript(src) {
   });
 }
 
-// ── FULL PIPELINE ──────────────────────────────────────────
 export function runPipeline(img, params) {
   const {
     cols, charset, contrast, gamma, edgeWeight, sharpen,
@@ -839,7 +804,7 @@ export function runPipeline(img, params) {
     colourMode, attenuation, fgHex, bgHex, fontSize, outputFont,
     multiscale, multiscaleBoost,
     saliencyAware, saliencyBoost,
-    fusionV6, freqAware, glyphMatch, glyphErrDiff, gradientDir,
+    fusionV6, freqAware, glyphMatch, glyphErrDiff,
   } = params;
 
   // 1. Load RGBA + sharpen
@@ -892,10 +857,6 @@ export function runPipeline(img, params) {
     let processedBright = bright;
     if (dither) processedBright = floydSteinberg(bright, gridCols, rows, chars.length);
     charGrid = brightnessToChars(processedBright, gridCols, rows, chars, invert);
-  }
-
-  if (gradientDir) {
-    charGrid = applyGradientDirection(charGrid, bright, gridCols, rows, 0.25);
   }
 
   return {

@@ -1,10 +1,9 @@
-// ═══════════════════════════════════════════════════════════
-//  main.js — app entry, wires UI ↔ renderer ↔ controls
-// ═══════════════════════════════════════════════════════════
-
-import { initControls, DEFAULT_PARAMS } from './controls.js';
+import { DEFAULT_PARAMS, initControls } from './controls.js';
 import {
-  loadFile, render, exportSVG, exportTXT, exportPNG, exportPDF,
+  exportPDF,
+  exportPNG,
+  exportSVG, exportTXT,
+  loadFile, render,
   triggerDownload, triggerDownloadText,
 } from './renderer.js';
 
@@ -14,25 +13,25 @@ let params = { ...DEFAULT_PARAMS };
 let renderDebounce = null;
 
 // ── DOM refs ───────────────────────────────────────────────
-const dropzone    = document.getElementById('dropzone');
-const fileInput   = document.getElementById('file-input');
-const resultWrap  = document.getElementById('result');
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('file-input');
+const resultWrap = document.getElementById('result');
 const resultInner = document.getElementById('result-inner');
-const thumbWrap   = document.getElementById('thumb-wrap');
-const thumbImg    = document.getElementById('thumb');
-const thumbName   = document.getElementById('thumb-name');
-const thumbSize   = document.getElementById('thumb-size');
-const statusDot   = document.getElementById('status-dot');
-const statusText  = document.getElementById('status');
+const thumbWrap = document.getElementById('thumb-wrap');
+const thumbImg = document.getElementById('thumb');
+const thumbName = document.getElementById('thumb-name');
+const thumbSize = document.getElementById('thumb-size');
+const statusDot = document.getElementById('status-dot');
+const statusText = document.getElementById('status');
 const progressBar = document.getElementById('progress-bar');
-const progressFill= document.getElementById('progress-fill');
-const btnRender   = document.getElementById('btn-render');
-const btnLabel    = document.getElementById('btn-label');
-const btnSpinner  = document.getElementById('render-spinner');
-const btnIcon     = document.getElementById('btn-icon');
-const exportBtns  = document.querySelectorAll('.export-btn');
-const toastEl     = document.getElementById('toast');
-const toastMsg    = document.getElementById('toast-msg');
+const progressFill = document.getElementById('progress-fill');
+const btnRender = document.getElementById('btn-render');
+const btnLabel = document.getElementById('btn-label');
+const btnSpinner = document.getElementById('render-spinner');
+const btnIcon = document.getElementById('btn-icon');
+const exportBtns = document.querySelectorAll('.export-btn');
+const toastEl = document.getElementById('toast');
+const toastMsg = document.getElementById('toast-msg');
 
 // ── Init controls ──────────────────────────────────────────
 params = initControls((newParams) => {
@@ -74,7 +73,6 @@ async function onFile(file) {
   }
 }
 
-// ── Render ─────────────────────────────────────────────────
 function scheduleRender() {
   if (!currentFile) return;
   clearTimeout(renderDebounce);
@@ -85,6 +83,9 @@ async function doRender() {
   if (!currentFile) { setStatus('Drop an image to start', ''); return; }
   setBusy(true);
   setStatus('Rendering…', 'busy');
+
+  await new Promise(r => setTimeout(r, 50));
+
   try {
     const html = await render(params);
     resultInner.innerHTML = html;
@@ -152,8 +153,8 @@ function setStatus(msg, cls = '') {
 
 function setBusy(on) {
   btnSpinner.style.display = on ? 'block' : 'none';
-  btnIcon.style.display    = on ? 'none'  : 'block';
-  btnLabel.textContent     = on ? 'Rendering…' : 'Render';
+  btnIcon.style.display = on ? 'none' : 'block';
+  btnLabel.textContent = on ? 'Rendering…' : 'Render';
   progressBar.style.display = on ? 'block' : 'none';
 
   if (on) {
