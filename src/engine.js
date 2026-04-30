@@ -902,7 +902,10 @@ export function runPipeline(img, params) {
     bright = applySaliencyToBrightness(bright, sal, gridCols, rows, saliencyBoost);
   }
 
-  const chars = measureCharDensity(RAW_CHARSETS[charset] || RAW_CHARSETS.full);
+  const rawChars = charset === 'custom' && params.customCharset
+    ? params.customCharset
+    : (RAW_CHARSETS[charset] || RAW_CHARSETS.full);
+  const chars = measureCharDensity(rawChars);
   let charGrid;
 
   if (showMask) {

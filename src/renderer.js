@@ -57,6 +57,7 @@ export async function render(params) {
     freqAware: params.freqAware,
     glyphMatch: params.glyphMatch,
     glyphErrDiff: params.glyphErrDiff,
+    customCharset: params.customCharset || '',
   };
 
   lastResult = runPipeline(currentImg, enriched);

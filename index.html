@@ -67,7 +67,13 @@
               <option value="edges">Edges &nbsp; .-+|/\xX#@</option>
               <option value="binary">Binary &nbsp; 0 1</option>
               <option value="numbers">Numbers &nbsp; 0–9</option>
+              <option value="custom">Custom…</option>
             </select>
+          </div>
+          <div id="custom-charset-row" class="ctrl" style="display:none;">
+            <div class="ctrl-label">Your characters</div>
+            <input type="text" id="custom_charset" placeholder="e.g.  ░▒▓ABCDEF#@" spellcheck="false" autocomplete="off"
+              style="font-family:'Geist Mono',monospace;font-size:12px;background:var(--surface-1);color:var(--text);border:1px solid var(--border);border-radius:var(--r);padding:6px 8px;width:100%;box-sizing:border-box;outline:none;"/>
           </div>
           <div class="ctrl">
             <div class="ctrl-label">Height ratio <span class="ctrl-val" id="val-char_aspect">0.45</span></div>

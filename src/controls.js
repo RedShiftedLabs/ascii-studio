@@ -78,7 +78,28 @@ export function initControls(onChange) {
   }
 
   bindSlider('cols', 'cols', v => v);
-  bindSelect('charset', 'charset');
+  // Charset select – with Custom mode support
+  const charsetEl = document.getElementById('charset');
+  const customRow = document.getElementById('custom-charset-row');
+  const customInput = document.getElementById('custom_charset');
+  charsetEl.value = state.charset;
+  const toggleCustomRow = () => {
+    customRow.style.display = state.charset === 'custom' ? '' : 'none';
+  };
+  toggleCustomRow();
+  charsetEl.addEventListener('change', () => {
+    state.charset = charsetEl.value;
+    toggleCustomRow();
+    onChange(state);
+  });
+  let customDebounce = null;
+  customInput.addEventListener('input', () => {
+    const val = customInput.value.trim();
+    if (!val || val.length < 2) return; // need at least 2 chars for a gradient
+    state.customCharset = val;
+    clearTimeout(customDebounce);
+    customDebounce = setTimeout(() => onChange(state), 500);
+  });
   bindSlider('char_aspect', 'charAspect');
   bindSlider('sharpen', 'sharpen');
 
