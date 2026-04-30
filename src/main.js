@@ -7,7 +7,6 @@ import {
   loadFile, render,
   triggerDownload, triggerDownloadText,
 } from './renderer.js';
-import imglyRemoveBackground from 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/dist/imgly-background-removal.esm.js';
 
 let currentFile = null;
 let params = { ...DEFAULT_PARAMS };
@@ -60,19 +59,29 @@ const AIState = {
 let bgRemovalState = AIState.NOT_LOADED;
 
 document.getElementById('btn-remove-bg').addEventListener('click', async () => {
-  if (!currentFile) return toast('Load an image first', 'err');
+  if (!currentFile) return toast('Load an image first');
   if (bgRemovalState === AIState.LOADING_MODEL || bgRemovalState === AIState.PROCESSING) return;
 
   const btn = document.getElementById('btn-remove-bg');
   const originalHtml = btn.innerHTML;
   
   try {
-    bgRemovalState = bgRemovalState === AIState.NOT_LOADED ? AIState.LOADING_MODEL : AIState.PROCESSING;
-    btn.innerHTML = bgRemovalState === AIState.LOADING_MODEL ? 'Downloading AI model (~40MB)... 0%' : 'Removing background...';
+    const isFirstLoad = bgRemovalState === AIState.NOT_LOADED;
+    bgRemovalState = isFirstLoad ? AIState.LOADING_MODEL : AIState.PROCESSING;
+    btn.innerHTML = isFirstLoad ? 'Downloading AI model (~40MB)... 0%' : 'Removing background...';
     btn.disabled = true;
     
+    // Dynamic import with correct +esm format — failure is isolated, won't break UI
+    let removeBackground;
+    try {
+      const mod = await import('https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/+esm');
+      removeBackground = mod.removeBackground;
+    } catch (importErr) {
+      throw new Error('Could not load AI model from CDN. Check your internet connection.');
+    }
+    
     const config = {
-      publicPath: 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/dist/',
+      publicPath: 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/dist/',
       progress: (key, current, total) => {
         if (key.includes('fetch') && total) {
           const pct = Math.round((current / total) * 100);
@@ -83,18 +92,16 @@ document.getElementById('btn-remove-bg').addEventListener('click', async () => {
       }
     };
     
-    const blob = await imglyRemoveBackground(currentFile, config);
-    
+    const blob = await removeBackground(currentFile, config);
     bgRemovalState = AIState.READY;
     
-    // Create new file from blob to replace currentFile
-    const cleanFile = new File([blob], "nobg_" + currentFile.name, { type: "image/png" });
+    const cleanFile = new File([blob], 'nobg_' + currentFile.name, { type: 'image/png' });
     document.getElementById('bg-rm-controls').style.display = 'block';
     await onFile(cleanFile);
     
   } catch (err) {
     console.error(err);
-    toast('Background removal failed', 'err');
+    toast('Background removal failed: ' + err.message);
     bgRemovalState = AIState.NOT_LOADED;
   } finally {
     btn.innerHTML = originalHtml;
