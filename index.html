@@ -150,10 +150,16 @@
           <div class="ctrl">
             <div class="ctrl-label">Theme</div>
             <select id="theme"></select>
+            <div id="theme-swatch" style="display:flex;gap:6px;margin-top:6px;align-items:center;">
+              <div id="swatch-bg" style="width:18px;height:18px;border-radius:4px;border:1px solid var(--border-2);flex-shrink:0;"></div>
+              <div id="swatch-fg" style="width:18px;height:18px;border-radius:4px;border:1px solid var(--border-2);flex-shrink:0;"></div>
+              <span id="swatch-label" style="font-size:10px;color:var(--text-3);font-family:'Geist Mono',monospace;"></span>
+            </div>
           </div>
           <div class="ctrl">
-            <div class="ctrl-label">Attenuation <span class="ctrl-val" id="val-attenuation">0.70</span></div>
-            <input type="range" id="attenuation" min="0" max="1" step="0.05" value="0.7"/>
+            <div class="ctrl-label">Shadow depth <span class="ctrl-val" id="val-attenuation">0.70</span></div>
+            <input type="range" id="attenuation" min="0" max="1" step="0.05" value="0.7"
+              title="Controls how dark the low-brightness characters fade. Higher = darker shadows."/>
           </div>
           <div class="ctrl">
             <div class="ctrl-label">Vignette <span class="ctrl-val" id="val-vignette">0.40</span></div>
