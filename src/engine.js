@@ -263,14 +263,25 @@ export function sharpenImage(rgba, w, h, strength) {
 
 export function brightnessToChars(brightness, w, h, chars, invert = false) {
   const n = chars.length - 1;
+  const isBinary = chars.length === 3 && chars.includes('0') && chars.includes('1') && chars.includes(' ');
   const grid = [];
   for (let y = 0; y < h; y++) {
     const row = [];
     for (let x = 0; x < w; x++) {
       let norm = brightness[y * w + x] / 255;
       if (invert) norm = 1 - norm;
-      const idx = Math.max(0, Math.min(n, Math.round(norm * n)));
-      row.push(chars[idx]);
+
+      if (isBinary) {
+        if (norm < 0.12) {
+          row.push(' ');
+        } else {
+          const r = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+          row.push((r - Math.floor(r)) > 0.5 ? '1' : '0');
+        }
+      } else {
+        const idx = Math.max(0, Math.min(n, Math.round(norm * n)));
+        row.push(chars[idx]);
+      }
     }
     grid.push(row);
   }
