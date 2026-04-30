@@ -28,6 +28,11 @@ export const DEFAULT_PARAMS = {
   outputFont: "'Courier New',Courier,monospace",
   saliencyAware: false,
   saliencyBoost: 0.60,
+  fusionV6: false,
+  freqAware: false,
+  glyphMatch: false,
+  glyphErrDiff: false,
+  gradientDir: false,
 };
 
 export function initControls(onChange) {
@@ -121,6 +126,11 @@ export function initControls(onChange) {
   // ── Advanced section ───────────────────────────────────
   bindCheckbox('saliency_aware', 'saliencyAware', 'saliency-sub');
   bindSlider('saliency_boost', 'saliencyBoost');
+  bindCheckbox('fusion_v6', 'fusionV6');
+  bindCheckbox('freq_aware', 'freqAware');
+  bindCheckbox('glyph_match', 'glyphMatch');
+  bindCheckbox('glyph_err_diff', 'glyphErrDiff');
+  bindCheckbox('gradient_dir', 'gradientDir');
 
   // ── Display section ────────────────────────────────────
   bindSlider('font_size', 'fontSize', v => v);
@@ -168,7 +178,8 @@ export function getParams() {
     const el = document.getElementById(id);
     if (el) state[id] = el.value;
   });
-  const checks = ['equalize','dither','invert','multiscale','saliency_aware'];
+  const checks = ['equalize','dither','invert','multiscale','saliency_aware',
+    'fusion_v6','freq_aware','glyph_match','glyph_err_diff','gradient_dir'];
   checks.forEach(id => {
     const el = document.getElementById(id);
     if (el) state[id] = el.checked;

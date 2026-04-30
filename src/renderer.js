@@ -48,6 +48,11 @@ export async function render(params) {
     multiscaleBoost: params.multiscaleBoost,
     saliencyAware:  params.saliencyAware,
     saliencyBoost:  params.saliencyBoost,
+    fusionV6:       params.fusionV6,
+    freqAware:      params.freqAware,
+    glyphMatch:     params.glyphMatch,
+    glyphErrDiff:   params.glyphErrDiff,
+    gradientDir:    params.gradientDir,
   };
 
   lastResult = runPipeline(currentImg, enriched);
