@@ -1,6 +1,7 @@
 import {
   imageToRGBA,
   loadImageFromFile,
+  renderToCanvas,
   renderToHTML,
   renderToPDF,
   renderToPNG,
@@ -33,10 +34,13 @@ export async function render(params) {
     sharpen: params.sharpen,
     contrast: params.contrast,
     gamma: params.gamma,
+    exposure: params.exposure,
     edgeWeight: params.edgeWeight,
     equalize: params.equalize,
     dither: params.dither,
     invert: params.invert,
+    showMask: params.showMask,
+    alphaThreshold: params.alphaThreshold,
     vignette: params.vignette,
     grain: params.grain,
     attenuation: params.attenuation,
@@ -58,10 +62,17 @@ export async function render(params) {
   lastResult = runPipeline(currentImg, enriched);
   lastParams = enriched;
 
-  return renderToHTML(lastResult.charGrid, lastResult.brightness, lastResult.colourData, {
+  return renderToCanvas(lastResult.charGrid, lastResult.brightness, lastResult.colourData, {
     rows: lastResult.rows,
     cols: lastResult.cols,
     ...enriched,
+  });
+}
+
+export function exportHTML() {
+  if (!lastResult || !lastParams) return null;
+  return renderToHTML(lastResult.charGrid, lastResult.brightness, lastResult.colourData, {
+    rows: lastResult.rows, cols: lastResult.cols, ...lastParams,
   });
 }
 

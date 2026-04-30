@@ -661,6 +661,71 @@ export function fusedV6Chars(bright, rawBright, msCtx, cols, rows, chars, invert
   return charGrid;
 }
 
+export function renderToCanvas(charGrid, brightness, colourData, opts) {
+  const { rows, cols, fgHex, bgHex, fontSize, attenuation, colourMode, outputFont } = opts;
+  const [fr, fg, fb] = hexToRgb(fgHex);
+  const [br, bg, bb] = hexToRgb(bgHex);
+
+  const charW = fontSize * 0.601 + 0.3; 
+  const charH = fontSize * 1.15;
+  const w = cols * charW;
+  const h = rows * charH;
+
+  const canvas = document.createElement('canvas');
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  canvas.style.width = `${w}px`;
+  canvas.style.height = `${h}px`;
+
+  const ctx = canvas.getContext('2d', { alpha: false });
+  ctx.scale(dpr, dpr);
+
+  ctx.fillStyle = bgHex;
+  ctx.fillRect(0, 0, w, h);
+
+  ctx.font = `${fontSize}px ${outputFont}`;
+  ctx.textBaseline = 'top';
+
+  if (!colourMode && attenuation === 0) {
+    // Ultra-fast row batching for monochrome
+    if ('letterSpacing' in ctx) {
+      ctx.letterSpacing = '0.3px';
+    }
+    ctx.fillStyle = fgHex;
+    for (let y = 0; y < rows; y++) {
+      const rowStr = charGrid[y].join('');
+      if (!rowStr.trim()) continue; // Skip empty rows
+      ctx.fillText(rowStr, 0, y * charH);
+    }
+  } else {
+    // Sparse drawing for colour/attenuated mode
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        const ch = charGrid[y][x];
+        if (ch === ' ') continue;
+
+        const luma = brightness[y * cols + x] / 255;
+        let pr, pg, pb;
+        if (colourMode && colourData) {
+          const ci = (y * cols + x) * 4;
+          pr = colourData.data[ci]; pg = colourData.data[ci + 1]; pb = colourData.data[ci + 2];
+        } else {
+          pr = Math.round(fr * luma + br * (1 - luma));
+          pg = Math.round(fg * luma + bg * (1 - luma));
+          pb = Math.round(fb * luma + bb * (1 - luma));
+        }
+        const alpha = attenuation > 0 ? Math.max(0.08, Math.min(1, luma * attenuation + (1 - attenuation))) : 1;
+        
+        ctx.fillStyle = `rgba(${pr},${pg},${pb},${alpha})`;
+        ctx.fillText(ch, x * charW, y * charH);
+      }
+    }
+  }
+
+  return canvas;
+}
+
 export function renderToHTML(charGrid, brightness, colourData, opts) {
   const { rows, cols, fgHex, bgHex, fontSize, attenuation, colourMode, outputFont } = opts;
   const [fr, fg, fb] = hexToRgb(fgHex);
@@ -790,7 +855,7 @@ function loadScript(src) {
 export function runPipeline(img, params) {
   const {
     cols, charset, contrast, gamma, exposure, edgeWeight, sharpen,
-    vignette, grain, equalize, dither, invert, charAspect,
+    vignette, grain, equalize, dither, invert, showMask, alphaThreshold, charAspect,
     colourMode, attenuation, fgHex, bgHex, fontSize, outputFont,
     multiscale, multiscaleBoost,
     saliencyAware, saliencyBoost,
@@ -803,6 +868,14 @@ export function runPipeline(img, params) {
   let bright = computeBrightness(sharpened, srcW, srcH);
   const { small: resized, rows, cols: gridCols } = resizeForAscii(bright, srcW, srcH, cols, charAspect);
   bright = resized;
+
+  const alphaRaw = new Float32Array(srcW * srcH);
+  let hasAlpha = false;
+  for(let i=0; i<srcW*srcH; i++) {
+    alphaRaw[i] = rgba[i*4+3];
+    if (alphaRaw[i] < 255) hasAlpha = true;
+  }
+  const alphaResized = hasAlpha ? resizeForAscii(alphaRaw, srcW, srcH, cols, charAspect).small : null;
 
   let msCtx = null;
   if (fusionV6) {
@@ -832,7 +905,18 @@ export function runPipeline(img, params) {
   const chars = measureCharDensity(RAW_CHARSETS[charset] || RAW_CHARSETS.full);
   let charGrid;
 
-  if (freqAware) {
+  if (showMask) {
+    charGrid = [];
+    const t = (alphaThreshold || 0) * 255;
+    for (let y = 0; y < rows; y++) {
+      const row = [];
+      for (let x = 0; x < gridCols; x++) {
+        const a = alphaResized ? alphaResized[y * gridCols + x] : 255;
+        row.push(a >= t ? chars[chars.length - 1] : ' ');
+      }
+      charGrid.push(row);
+    }
+  } else if (freqAware) {
     charGrid = frequencyAwareChars(sharpened, srcW, srcH, chars, gridCols, rows, charAspect, invert);
   } else if (glyphMatch) {
     charGrid = glyphMatchChars(sharpened, srcW, srcH, chars, gridCols, charAspect, fontSize, invert);
@@ -846,10 +930,17 @@ export function runPipeline(img, params) {
     charGrid = brightnessToChars(processedBright, gridCols, rows, chars, invert);
   }
 
-  return {
-    charGrid, rows, cols: gridCols,
-    brightness: rawBright,
-    colourData: colourResized ? colourResized.data : null,
-  };
-}
+  // Enforce alpha mask on generated characters
+  if (!showMask && hasAlpha) {
+    const t = (alphaThreshold || 0) * 255;
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < gridCols; x++) {
+        if (alphaResized[y * gridCols + x] < t) {
+          charGrid[y][x] = ' ';
+        }
+      }
+    }
+  }
 
+  return { charGrid, brightness: rawBright, colourData: colourResized ? colourResized.data : null, rows, cols: gridCols };
+}

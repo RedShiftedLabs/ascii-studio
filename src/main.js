@@ -1,11 +1,13 @@
 import { DEFAULT_PARAMS, initControls } from './controls.js';
 import {
+  exportHTML,
   exportPDF,
   exportPNG,
   exportSVG, exportTXT,
   loadFile, render,
   triggerDownload, triggerDownloadText,
 } from './renderer.js';
+import imglyRemoveBackground from 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/dist/imgly-background-removal.esm.js';
 
 let currentFile = null;
 let params = { ...DEFAULT_PARAMS };
@@ -48,6 +50,57 @@ dropzone.addEventListener('drop', e => {
 });
 
 document.getElementById('btn-open').addEventListener('click', () => fileInput.click());
+
+const AIState = {
+  NOT_LOADED: 0,
+  LOADING_MODEL: 1,
+  READY: 2,
+  PROCESSING: 3
+};
+let bgRemovalState = AIState.NOT_LOADED;
+
+document.getElementById('btn-remove-bg').addEventListener('click', async () => {
+  if (!currentFile) return toast('Load an image first', 'err');
+  if (bgRemovalState === AIState.LOADING_MODEL || bgRemovalState === AIState.PROCESSING) return;
+
+  const btn = document.getElementById('btn-remove-bg');
+  const originalHtml = btn.innerHTML;
+  
+  try {
+    bgRemovalState = bgRemovalState === AIState.NOT_LOADED ? AIState.LOADING_MODEL : AIState.PROCESSING;
+    btn.innerHTML = bgRemovalState === AIState.LOADING_MODEL ? 'Downloading AI model (~40MB)... 0%' : 'Removing background...';
+    btn.disabled = true;
+    
+    const config = {
+      publicPath: 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/dist/',
+      progress: (key, current, total) => {
+        if (key.includes('fetch') && total) {
+          const pct = Math.round((current / total) * 100);
+          btn.innerHTML = `Downloading AI model... ${pct}%`;
+        } else if (key.includes('compute')) {
+          btn.innerHTML = 'Removing background...';
+        }
+      }
+    };
+    
+    const blob = await imglyRemoveBackground(currentFile, config);
+    
+    bgRemovalState = AIState.READY;
+    
+    // Create new file from blob to replace currentFile
+    const cleanFile = new File([blob], "nobg_" + currentFile.name, { type: "image/png" });
+    document.getElementById('bg-rm-controls').style.display = 'block';
+    await onFile(cleanFile);
+    
+  } catch (err) {
+    console.error(err);
+    toast('Background removal failed', 'err');
+    bgRemovalState = AIState.NOT_LOADED;
+  } finally {
+    btn.innerHTML = originalHtml;
+    btn.disabled = false;
+  }
+});
 
 async function onFile(file) {
   if (!file) return;
@@ -93,8 +146,9 @@ async function doRender() {
   await new Promise(r => setTimeout(r, 50));
 
   try {
-    const html = await render(params);
-    resultInner.innerHTML = html;
+    const canvas = await render(params);
+    resultInner.innerHTML = '';
+    resultInner.appendChild(canvas);
     dropzone.style.display = 'none';
     resultWrap.style.display = 'block';
     document.getElementById('zoom-controls').style.display = 'flex';
@@ -115,14 +169,14 @@ let isFitToScreen = true;
 const zoomLevelTxt = document.getElementById('zoom-level');
 
 function updateZoom() {
-  if (!resultInner.querySelector('pre')) return;
+  const el = resultInner.querySelector('canvas') || resultInner.querySelector('pre');
+  if (!el) return;
   resultInner.style.zoom = 1; // reset to measure
   if (isFitToScreen) {
-    const pre = resultInner.querySelector('pre');
     const wrap = document.getElementById('preview-wrap');
     const availableW = wrap.clientWidth - 48;
-    const preW = pre.scrollWidth;
-    currentZoom = preW > 0 ? Math.min(1, availableW / preW) : 1;
+    const w = el.tagName === 'CANVAS' ? el.offsetWidth : el.scrollWidth;
+    currentZoom = w > 0 ? Math.min(1, availableW / w) : 1;
   }
   resultInner.style.zoom = currentZoom;
   zoomLevelTxt.textContent = isFitToScreen ? 'Fit' : Math.round(currentZoom * 100) + '%';
@@ -149,9 +203,9 @@ window.addEventListener('resize', () => {
 btnRender.addEventListener('click', doRender);
 
 document.getElementById('btn-html').addEventListener('click', async () => {
-  const svg = exportSVG();
-  if (!svg) return;
-  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>ASCII Art</title></head><body style="margin:0;background:${params.bgHex};">${resultInner.innerHTML}</body></html>`;
+  const htmlStr = exportHTML();
+  if (!htmlStr) return;
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>ASCII Art</title></head><body style="margin:0;background:${params.bgHex};">${htmlStr}</body></html>`;
   triggerDownloadText(html, 'ascii_art.html', 'text/html');
   toast('HTML saved ✓');
 });

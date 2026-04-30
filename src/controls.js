@@ -12,6 +12,8 @@ export const DEFAULT_PARAMS = {
   equalize: true,
   dither: true,
   invert: false,
+  showMask: false,
+  alphaThreshold: 0.5,
   multiscale: false,
   multiscaleBoost: 1.2,
   attenuation: 0.70,
@@ -87,6 +89,8 @@ export function initControls(onChange) {
   bindCheckbox('equalize', 'equalize');
   bindCheckbox('dither', 'dither');
   bindCheckbox('invert', 'invert');
+  bindCheckbox('show_mask', 'showMask');
+  bindSlider('alpha_threshold', 'alphaThreshold');
   bindCheckbox('multiscale', 'multiscale', 'multiscale-sub');
   bindSlider('multiscale_boost', 'multiscaleBoost');
 
@@ -253,6 +257,8 @@ export function initControls(onChange) {
     document.getElementById('val-exposure').textContent = DEFAULT_PARAMS.exposure.toFixed(2);
     document.getElementById('edge_weight').value = DEFAULT_PARAMS.edgeWeight;
     document.getElementById('val-edge_weight').textContent = DEFAULT_PARAMS.edgeWeight.toFixed(2);
+    document.getElementById('alpha_threshold').value = DEFAULT_PARAMS.alphaThreshold;
+    document.getElementById('val-alpha_threshold').textContent = DEFAULT_PARAMS.alphaThreshold.toFixed(2);
     document.getElementById('attenuation').value = DEFAULT_PARAMS.attenuation;
     document.getElementById('val-attenuation').textContent = DEFAULT_PARAMS.attenuation.toFixed(2);
     document.getElementById('vignette').value = DEFAULT_PARAMS.vignette;
@@ -265,7 +271,7 @@ export function initControls(onChange) {
     document.getElementById('val-saliency_boost').textContent = DEFAULT_PARAMS.saliencyBoost.toFixed(2);
     document.getElementById('font_size').value = DEFAULT_PARAMS.fontSize;
     document.getElementById('val-font_size').textContent = DEFAULT_PARAMS.fontSize;
-    ['equalize','dither','invert','multiscale','saliency_aware',
+    ['equalize','dither','invert','show_mask','multiscale','saliency_aware',
       'fusion_v6','freq_aware','glyph_match','glyph_err_diff'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.checked = !!DEFAULT_PARAMS[id.replace(/_([a-z])/g, (_, c) => c.toUpperCase())];
