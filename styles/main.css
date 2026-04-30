@@ -310,18 +310,36 @@ body::before {
     flex-direction: column-reverse;
   }
   #main {
-    min-height: 50vh;
+    flex: none;
+    height: 48vh;
   }
   #topbar {
-    height: auto;
-    min-height: var(--topbar-h);
-    padding: 8px 10px;
-    flex-wrap: wrap;
+    height: 48px;
+    padding: 0 10px;
+    flex-wrap: nowrap;
+    overflow: hidden;
   }
   #topbar-actions {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 10px;
+    margin-bottom: -10px;
+    scrollbar-width: none;
+  }
+  #topbar-actions::-webkit-scrollbar {
+    display: none;
+  }
+  .btn {
+    padding: 5px 8px;
+    font-size: 10px;
   }
   .btn span {
     display: none;
+  }
+  .export-btn {
+    display: inline-flex !important;
+  }
+  #status {
+    max-width: 120px;
   }
 }

@@ -88,9 +88,13 @@
   #sidebar {
     width: 100%;
     min-width: 100%;
-    max-height: 50vh;
+    height: 52vh;
+    max-height: 52vh;
     border-right: none;
     border-top: 1px solid var(--border);
+  }
+  #sidebar-header {
+    display: none;
   }
   #sidebar::after {
     width: 100%;
