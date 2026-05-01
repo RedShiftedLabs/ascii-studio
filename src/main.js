@@ -1,4 +1,5 @@
 import { DEFAULT_PARAMS, initControls } from './controls.js';
+import { getMLSaliencyStatus } from './engine.js';
 import {
   exportHTML,
   exportPDF,
@@ -7,6 +8,31 @@ import {
   loadFile, render,
   triggerDownload, triggerDownloadText,
 } from './renderer.js';
+
+// Poll model status and update the badge in the Advanced section
+function _updateMLBadge() {
+  const badge = document.getElementById('ml-saliency-badge');
+  if (!badge) return;
+  const s = getMLSaliencyStatus();
+  if (s === 'ready') {
+    badge.textContent = 'ready ✓';
+    badge.style.color = 'var(--ok)';
+    badge.style.borderColor = 'rgba(78,255,160,0.3)';
+    badge.style.background = 'rgba(78,255,160,0.06)';
+  } else if (s === 'loading') {
+    badge.textContent = 'loading…';
+    badge.style.color = 'var(--amber)';
+    badge.style.borderColor = 'rgba(255,170,78,0.3)';
+    badge.style.background = 'var(--amber-dim)';
+    setTimeout(_updateMLBadge, 800);
+  } else if (s === 'failed') {
+    badge.textContent = 'offline (fallback)';
+    badge.style.color = 'var(--text-3)';
+  } else {
+    setTimeout(_updateMLBadge, 800);
+  }
+}
+_updateMLBadge();
 
 let currentFile = null;
 let params = { ...DEFAULT_PARAMS };
@@ -64,13 +90,13 @@ document.getElementById('btn-remove-bg').addEventListener('click', async () => {
 
   const btn = document.getElementById('btn-remove-bg');
   const originalHtml = btn.innerHTML;
-  
+
   try {
     const isFirstLoad = bgRemovalState === AIState.NOT_LOADED;
     bgRemovalState = isFirstLoad ? AIState.LOADING_MODEL : AIState.PROCESSING;
     btn.innerHTML = isFirstLoad ? 'Downloading AI model (~40MB)... 0%' : 'Removing background...';
     btn.disabled = true;
-    
+
     // Dynamic import with correct +esm format — failure is isolated, won't break UI
     let removeBackground;
     try {
@@ -79,7 +105,7 @@ document.getElementById('btn-remove-bg').addEventListener('click', async () => {
     } catch (importErr) {
       throw new Error('Could not load AI model from CDN. Check your internet connection.');
     }
-    
+
     const config = {
       progress: (key, current, total) => {
         if (key.includes('fetch') && total) {
@@ -90,14 +116,14 @@ document.getElementById('btn-remove-bg').addEventListener('click', async () => {
         }
       }
     };
-    
+
     const blob = await removeBackground(currentFile, config);
     bgRemovalState = AIState.READY;
-    
+
     const cleanFile = new File([blob], 'nobg_' + currentFile.name, { type: 'image/png' });
     document.getElementById('bg-rm-controls').style.display = 'block';
     await onFile(cleanFile);
-    
+
   } catch (err) {
     console.error(err);
     toast('Background removal failed: ' + err.message);
@@ -131,11 +157,6 @@ async function onFile(file) {
 
 function scheduleRender() {
   if (!currentFile) return;
-  // Skip auto-render for slow glyph algorithms — user must click Render manually.
-  if (params.glyphMatch || params.glyphErrDiff) {
-    setStatus('Press Render to apply (slow mode active)', 'busy');
-    return;
-  }
   // Don't queue a new render while one is already running.
   if (isRendering) return;
   clearTimeout(renderDebounce);
@@ -285,5 +306,3 @@ function toast(msg) {
   toastEl.classList.add('show');
   setTimeout(() => toastEl.classList.remove('show'), 2200);
 }
-
-

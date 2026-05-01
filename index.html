@@ -273,47 +273,35 @@
               </svg>
             </span>
           </div>
+
           <div class="section-body">
+
             <div class="toggle-row">
-              <input type="checkbox" id="saliency_aware" />
-              <label for="saliency_aware">Saliency-aware rendering</label>
+              <input type="checkbox" id="ml_saliency" />
+              <label for="ml_saliency">Neural Saliency</label>
+              <span id="ml-saliency-badge" style="margin-left:auto;font-size:9px;font-family:'Geist Mono',monospace;
+               padding:2px 6px;border-radius:3px;background:var(--surface-3);
+               color:var(--text-3);border:1px solid var(--border-2);">
+                loading…
+              </span>
             </div>
-            <div class="sub-ctrl" id="saliency-sub">
+
+            <div class="sub-ctrl" id="ml-saliency-sub">
               <div class="ctrl">
-                <div class="ctrl-label">Saliency boost <span class="ctrl-val" id="val-saliency_boost">0.60</span></div>
-                <input type="range" id="saliency_boost" min="0.1" max="1.0" step="0.05" value="0.60" />
+                <div class="ctrl-label">
+                  Saliency boost
+                  <span class="ctrl-val" id="val-ml_saliency_boost">0.60</span>
+                </div>
+                <input type="range" id="ml_saliency_boost" min="0.1" max="1.0" step="0.05" value="0.60"
+                  title="How strongly neural saliency shifts character density toward important regions." />
               </div>
+              <p style="font-size:10px;color:var(--text-3);line-height:1.5;margin-top:6px;">
+                Uses MobileNetV2 feature maps to find semantically important regions.
+                Dense chars are placed where the model attends; sparse chars fill the background.
+                Falls back to gradient energy if the model hasn't loaded yet.
+              </p>
             </div>
-            <div class="toggle-row">
-              <input type="checkbox" id="fusion_v6" />
-              <label for="fusion_v6">V6 Perceptual Fusion</label>
-            </div>
-            <div class="toggle-row">
-              <input type="checkbox" id="freq_aware" />
-              <label for="freq_aware">Frequency-Aware Mapping</label>
-            </div>
-            <div class="sub-ctrl" id="freq-aware-sub">
-              <div class="ctrl">
-                <div class="ctrl-label">Coherence threshold <span class="ctrl-val"
-                    id="val-freq_aware_coh_thresh">0.25</span></div>
-                <input type="range" id="freq_aware_coh_thresh" min="0" max="1" step="0.05" value="0.25"
-                  title="Lower = more directional chars. Higher = more texture chars." />
-              </div>
-              <div class="ctrl">
-                <div class="ctrl-label">Energy threshold <span class="ctrl-val"
-                    id="val-freq_aware_eng_thresh">0.02</span></div>
-                <input type="range" id="freq_aware_eng_thresh" min="0" max="0.5" step="0.02" value="0.02"
-                  title="Lower = more flat chars in low-detail areas. Higher = more directional chars everywhere." />
-              </div>
-            </div>
-            <div class="toggle-row">
-              <input type="checkbox" id="glyph_match" />
-              <label for="glyph_match">S-Tier Glyph Matching</label>
-            </div>
-            <div class="toggle-row">
-              <input type="checkbox" id="glyph_err_diff" />
-              <label for="glyph_err_diff">Glyph-Space Dithering (Slow)</label>
-            </div>
+
           </div>
         </div>
 

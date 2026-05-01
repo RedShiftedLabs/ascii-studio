@@ -11,10 +11,10 @@ export const RAW_CHARSETS = {
   binary: ' 01',
   numbers: ' 1732456908',
   scanlines: ' ─━═╌╍║│├┤┬┴┼╫╪',
-  circuit:   ' .·+×╋┼├┤╠╣╦╩╬○●◎',
-  japanese:  ' ｦｧｨｩｪｫｬｭｮｯｰｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ',
-  math:      ' ·∘∙○◦+×÷=≠≈∞∑∏∫∂√∇∆',
-  shadows:   ' ░▒▓█▉▊▋▌▍▎▏',
+  circuit: ' .·+×╋┼├┤╠╣╦╩╬○●◎',
+  japanese: ' ｦｧｨｩｪｫｬｭｮｯｰｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ',
+  math: ' ·∘∙○◦+×÷=≠≈∞∑∏∫∂√∇∆',
+  shadows: ' ░▒▓█▉▊▋▌▍▎▏',
 };
 
 export const THEMES = {
@@ -140,14 +140,14 @@ export function equalizeHistogram(b, w, h) {
   const useLocal = w !== undefined && h !== undefined && w > 0 && h > 0;
   const n = b.length;
   const out = new Float32Array(n);
- 
+
   // --- Global equalization with 1% clip ---
   const hist = new Int32Array(256);
   for (let i = 0; i < n; i++) hist[Math.min(255, Math.max(0, b[i] | 0))]++;
   const cdf = new Int32Array(256);
   cdf[0] = hist[0];
   for (let i = 1; i < 256; i++) cdf[i] = cdf[i - 1] + hist[i];
- 
+
   const clipLow = n * 0.01;
   const clipHigh = n * 0.99;
   let cdfMin = cdf[0], cdfMax = cdf[255];
@@ -158,19 +158,19 @@ export function equalizeHistogram(b, w, h) {
   for (let i = 0; i < 256; i++) {
     globalLut[i] = Math.round(Math.max(0, Math.min(255, (cdf[i] - cdfMin) / globalRange * 255)));
   }
- 
+
   if (!useLocal) {
     for (let i = 0; i < n; i++) out[i] = globalLut[Math.min(255, Math.max(0, b[i] | 0))];
     return out;
   }
- 
+
   // --- Local equalization (CLAHE-style) ---
   // Tile size: aim for ~8 tiles across, minimum 4×4 pixels
   const tileW = Math.max(4, Math.round(w / 8));
   const tileH = Math.max(4, Math.round(h / 8));
   const tilesX = Math.ceil(w / tileW);
   const tilesY = Math.ceil(h / tileH);
- 
+
   // Build a LUT for each tile
   const tileLuts = [];
   for (let ty = 0; ty < tilesY; ty++) {
@@ -178,7 +178,7 @@ export function equalizeHistogram(b, w, h) {
       const x0 = tx * tileW, y0 = ty * tileH;
       const x1 = Math.min(x0 + tileW, w);
       const y1 = Math.min(y0 + tileH, h);
- 
+
       const th = new Int32Array(256);
       for (let y = y0; y < y1; y++) {
         for (let x = x0; x < x1; x++) {
@@ -198,31 +198,31 @@ export function equalizeHistogram(b, w, h) {
       tileLuts.push(lut);
     }
   }
- 
+
   // Bilinear interpolation between tile LUTs
   const BLEND = 0.6; // local weight
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const v = Math.min(255, Math.max(0, b[y * w + x] | 0));
- 
+
       // Tile coords (centre-based)
       const tx = Math.max(0, Math.min(tilesX - 1, Math.floor((x - tileW / 2) / tileW)));
       const ty = Math.max(0, Math.min(tilesY - 1, Math.floor((y - tileH / 2) / tileH)));
       const tx2 = Math.min(tilesX - 1, tx + 1);
       const ty2 = Math.min(tilesY - 1, ty + 1);
- 
+
       const fx = ((x - tileW / 2) / tileW) - tx;
       const fy = ((y - tileH / 2) / tileH) - ty;
       const wx = Math.max(0, Math.min(1, fx));
       const wy = Math.max(0, Math.min(1, fy));
- 
+
       const v00 = tileLuts[ty * tilesX + tx][v];
       const v10 = tileLuts[ty * tilesX + tx2][v];
       const v01 = tileLuts[ty2 * tilesX + tx][v];
       const v11 = tileLuts[ty2 * tilesX + tx2][v];
       const localVal = v00 * (1 - wx) * (1 - wy) + v10 * wx * (1 - wy)
-                     + v01 * (1 - wx) * wy      + v11 * wx * wy;
- 
+        + v01 * (1 - wx) * wy + v11 * wx * wy;
+
       const globalVal = globalLut[v];
       out[y * w + x] = Math.round(localVal * BLEND + globalVal * (1 - BLEND));
     }
@@ -357,40 +357,65 @@ export function sharpenImage(rgba, w, h, strength) {
   return result;
 }
 
+// Binary density patterns indexed dark→bright.
+// Each string is a short run of 0s/1s whose ratio encodes the brightness level.
+// Variable-length strings + per-cell rotation break up repeating stripes,
+// giving the organic clustered look of the reference image.
+const _BINARY_DENSITY = [
+  '00000',   // ~0%  pure dark
+  '00001',   // ~10%
+  '00010',   // ~15%
+  '00100',   // ~20%
+  '00011',   // ~25%
+  '00101',   // ~30%
+  '00110',   // ~35%
+  '01001',   // ~40%
+  '01010',   // ~45%
+  '01011',   // ~50% even mix
+  '01101',   // ~55%
+  '01110',   // ~60%
+  '10011',   // ~65%
+  '10110',   // ~70%
+  '11010',   // ~73%
+  '11011',   // ~78%
+  '11101',   // ~83%
+  '11110',   // ~88%
+  '11111',   // ~100% pure bright
+];
+
 export function brightnessToChars(brightness, w, h, chars, invert = false) {
   const n = chars.length - 1;
   const stripped = chars.replace(/\s/g, '');
   const isBinary = stripped === '01' || stripped === '10';
- 
   const isNumbers = /^[0-9]+$/.test(stripped);
- 
-  const BAYER4 = [
-    [ 0/16,  8/16,  2/16, 10/16],
-    [12/16,  4/16, 14/16,  6/16],
-    [ 3/16, 11/16,  1/16,  9/16],
-    [15/16,  7/16, 13/16,  5/16],
-  ];
- 
+
   // t in [0,1] → slightly boosted mid separation
   const scurve = (t) => {
     const s = t * t * (3 - 2 * t);
     return s * 0.85 + t * 0.15;
   };
- 
+
+  // Deterministic per-cell rotation offset — breaks vertical stripe alignment
+  // without true randomness (same image always renders identically)
+  const cellOffset = (x, y) => ((x * 6 + y * 11) >>> 0) % 7;
+
   const grid = [];
   for (let y = 0; y < h; y++) {
     const row = [];
     for (let x = 0; x < w; x++) {
       let norm = brightness[y * w + x] / 255;
       if (invert) norm = 1 - norm;
- 
+
       if (isBinary) {
-        const threshold = BAYER4[y % 4][x % 4];
-        if (norm > threshold) {
-          row.push((x * 7 + y * 3) % 2 === 0 ? '0' : '1');
-        } else {
-          row.push(' ');
-        }
+        // Map brightness [0,1] to a density pattern
+        const patIdx = Math.max(0, Math.min(
+          _BINARY_DENSITY.length - 1,
+          Math.round(norm * (_BINARY_DENSITY.length - 1))
+        ));
+        const pat = _BINARY_DENSITY[patIdx];
+        // Rotate the pattern lookup position so adjacent cells don't repeat runs
+        const pos = (x + cellOffset(x, y)) % pat.length;
+        row.push(pat[pos]);
       } else if (isNumbers) {
         if (norm < 0.08) {
           row.push(' ');
@@ -415,434 +440,187 @@ export function hexToRgb(hex) {
   return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
 }
 
-export function applyMultiscaleEnhancement(bright, w, h, boost) {
-  if (boost <= 0) return { base: bright, d0: new Float32Array(w * h), d1: new Float32Array(w * h), d2: new Float32Array(w * h) };
+// ── ML Saliency: TensorFlow.js MobileNet-based neural saliency ──────────────
+// Uses MobileNet intermediate feature maps to compute a genuine attention map.
+// Activations from the last conv layer are averaged across channels (GAP),
+// then upsampled back to grid resolution. This gives a real content-aware
+// importance map — not a centre-gaussian approximation.
 
-  const gaussianBlur = (src, sigma) => {
-    const radius = Math.max(1, Math.round(sigma * 2));
-    const tmp = new Float32Array(w * h);
-    const out = new Float32Array(w * h);
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        let sum = 0, count = 0;
-        for (let dx = -radius; dx <= radius; dx++) {
-          const nx = Math.min(w - 1, Math.max(0, x + dx));
-          sum += src[y * w + nx]; count++;
-        }
-        tmp[y * w + x] = sum / count;
-      }
-    }
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        let sum = 0, count = 0;
-        for (let dy = -radius; dy <= radius; dy++) {
-          const ny = Math.min(h - 1, Math.max(0, y + dy));
-          sum += tmp[ny * w + x]; count++;
-        }
-        out[y * w + x] = sum / count;
-      }
-    }
-    return out;
-  };
+let _tfReady = false;
+let _mlSaliencyModel = null;
+let _mlSaliencyStatus = 'idle'; // 'idle' | 'loading' | 'ready' | 'failed'
 
-  const g1 = gaussianBlur(bright, 1.0);
-  const g2 = gaussianBlur(bright, 2.0);
-  const g3 = gaussianBlur(bright, 4.0);
-  const d0 = new Float32Array(w * h);
-  const d1 = new Float32Array(w * h);
-  const d2 = new Float32Array(w * h);
-  for (let i = 0; i < w * h; i++) {
-    d0[i] = bright[i] - g1[i];
-    d1[i] = g1[i] - g2[i];
-    d2[i] = g2[i] - g3[i];
+export function getMLSaliencyStatus() { return _mlSaliencyStatus; }
+
+async function _loadMLSaliencyModel() {
+  if (_mlSaliencyModel) return _mlSaliencyModel;
+  if (_mlSaliencyStatus === 'loading') return null;
+  _mlSaliencyStatus = 'loading';
+  try {
+    const tf = await import('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js');
+    await tf.ready();
+    _tfReady = true;
+    // Load MobileNetV2 from TFHub via tfjs-models
+    const mobilenet = await import('https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.1/dist/mobilenet.min.js');
+    _mlSaliencyModel = await mobilenet.load({ version: 2, alpha: 0.5 });
+    _mlSaliencyStatus = 'ready';
+    return _mlSaliencyModel;
+  } catch (e) {
+    _mlSaliencyStatus = 'failed';
+    console.warn('ML saliency model failed to load:', e);
+    return null;
   }
-
-  const out = new Float32Array(w * h);
-  for (let i = 0; i < w * h; i++) {
-    out[i] = g3[i] + d2[i] * (1 + boost * 0.5) + d1[i] * (1 + boost) + d0[i] * (1 + boost * 1.5);
-  }
-
-  let mn = Infinity, mx = -Infinity;
-  for (let i = 0; i < out.length; i++) { if (out[i] < mn) mn = out[i]; if (out[i] > mx) mx = out[i]; }
-  const range = mx - mn + 1e-8;
-  for (let i = 0; i < out.length; i++) out[i] = ((out[i] - mn) / range) * 255;
-
-  return { base: out, d0, d1, d2 };
 }
 
-export function computeSaliency(bright, cols, rows) {
-  const sal = new Float32Array(cols * rows);
+// Preload model in background when module is imported
+_loadMLSaliencyModel();
+
+/**
+ * computeMLSaliency
+ * Extracts intermediate activations from MobileNet to produce a saliency map.
+ * Falls back to a Sobel-based importance map if the model isn't ready yet.
+ *
+ * Returns Float32Array of size (cols * rows), values in [0, 1].
+ */
+export async function computeMLSaliency(rgba, srcW, srcH, cols, rows) {
+  // Try ML path first
+  if (_mlSaliencyStatus === 'ready' && _mlSaliencyModel) {
+    try {
+      return await _computeNeuralSaliency(rgba, srcW, srcH, cols, rows);
+    } catch (e) {
+      console.warn('Neural saliency inference failed, falling back:', e);
+    }
+  }
+  // Fallback: gradient energy map (Sobel magnitude) — still much better than centre-gaussian
+  return _computeGradientSaliency(rgba, srcW, srcH, cols, rows);
+}
+
+async function _computeNeuralSaliency(rgba, srcW, srcH, cols, rows) {
+  const tf = (await import('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js'));
+
+  // Resize source to 224x224 for MobileNet input
+  const INPUT_SIZE = 224;
+  const srcCanvas = new OffscreenCanvas(srcW, srcH);
+  const srcCtx = srcCanvas.getContext('2d');
+  srcCtx.putImageData(rgba, 0, 0);
+
+  const inputCanvas = new OffscreenCanvas(INPUT_SIZE, INPUT_SIZE);
+  const inputCtx = inputCanvas.getContext('2d');
+  inputCtx.drawImage(srcCanvas, 0, 0, INPUT_SIZE, INPUT_SIZE);
+  const inputData = inputCtx.getImageData(0, 0, INPUT_SIZE, INPUT_SIZE);
+
+  // Build input tensor [1, 224, 224, 3], normalized to [-1, 1]
+  const inputTensor = tf.tidy(() => {
+    const pixels = new Float32Array(INPUT_SIZE * INPUT_SIZE * 3);
+    for (let i = 0; i < INPUT_SIZE * INPUT_SIZE; i++) {
+      pixels[i * 3 + 0] = (inputData.data[i * 4 + 0] / 127.5) - 1;
+      pixels[i * 3 + 1] = (inputData.data[i * 4 + 1] / 127.5) - 1;
+      pixels[i * 3 + 2] = (inputData.data[i * 4 + 2] / 127.5) - 1;
+    }
+    return tf.tensor4d(pixels, [1, INPUT_SIZE, INPUT_SIZE, 3]);
+  });
+
+  // Extract intermediate feature map from MobileNet's internal model
+  // We grab the layer before global average pooling — gives spatial activation maps
+  let salMap;
+  try {
+    const internalModel = _mlSaliencyModel.model;
+    // Find the last conv layer with spatial dims (before flatten/GAP)
+    let targetLayer = null;
+    for (const layer of internalModel.layers) {
+      const outShape = layer.outputShape;
+      // Look for a conv layer with shape [null, H, W, C] where H,W > 1
+      if (Array.isArray(outShape) && outShape.length === 4 &&
+        outShape[1] > 1 && outShape[2] > 1 && outShape[3] >= 32) {
+        targetLayer = layer;
+      }
+    }
+
+    if (targetLayer) {
+      const featureModel = tf.model({
+        inputs: internalModel.inputs,
+        outputs: targetLayer.output,
+      });
+      const features = featureModel.predict(inputTensor); // [1, H, W, C]
+      // Global Average across channels → [1, H, W]
+      const averaged = tf.mean(features, 3); // mean over channels
+      const squeezed = averaged.squeeze([0]); // [H, W]
+      // ReLU to keep only positive activations
+      const relu = tf.relu(squeezed);
+      // Normalize to [0, 1]
+      const minV = relu.min();
+      const maxV = relu.max();
+      const normalised = relu.sub(minV).div(maxV.sub(minV).add(1e-8));
+      salMap = await normalised.array(); // 2D array [H][W]
+      tf.dispose([features, averaged, squeezed, relu, normalised, minV, maxV, featureModel]);
+    }
+  } catch (e) {
+    console.warn('Feature extraction failed:', e);
+  }
+  tf.dispose(inputTensor);
+
+  if (!salMap) return _computeGradientSaliency(rgba, srcW, srcH, cols, rows);
+
+  // Bilinear upsample salMap from [fH, fW] to [rows, cols]
+  const fH = salMap.length;
+  const fW = salMap[0].length;
+  const out = new Float32Array(cols * rows);
   for (let y = 0; y < rows; y++) {
     for (let x = 0; x < cols; x++) {
-      const v = bright[y * cols + x] / 255;
-      const gy = (y / (rows - 1)) * 2 - 1;
-      const gx = (x / (cols - 1)) * 2 - 1;
-      const centre = Math.exp(-(gx * gx + gy * gy) * 1.5);
-      sal[y * cols + x] = Math.min(1, 0.65 * v + 0.35 * centre);
+      const fy = (y / (rows - 1)) * (fH - 1);
+      const fx = (x / (cols - 1)) * (fW - 1);
+      const y0 = Math.floor(fy), y1 = Math.min(fH - 1, y0 + 1);
+      const x0 = Math.floor(fx), x1 = Math.min(fW - 1, x0 + 1);
+      const wy = fy - y0, wx = fx - x0;
+      out[y * cols + x] =
+        salMap[y0][x0] * (1 - wx) * (1 - wy) +
+        salMap[y0][x1] * wx * (1 - wy) +
+        salMap[y1][x0] * (1 - wx) * wy +
+        salMap[y1][x1] * wx * wy;
     }
-  }
-  return sal;
-}
-
-export function applySaliencyToBrightness(bright, sal, w, h, boost) {
-  const out = new Float32Array(w * h);
-  let mean = 0;
-  for (let i = 0; i < w * h; i++) mean += bright[i];
-  mean /= (w * h);
-  for (let i = 0; i < w * h; i++) {
-    const scale = 1 + boost * (sal[i] - 0.5) * 2;
-    out[i] = Math.max(0, Math.min(255, mean + (bright[i] - mean) * scale));
   }
   return out;
 }
 
-const _glyphAtlasCache = new Map();
-
-function _buildGlyphAtlas(chars, fontSize = 13) {
-  const sortedChars = [...chars].sort().join('');
-  const key = sortedChars + '_' + fontSize;
-  if (_glyphAtlasCache.has(key)) return _glyphAtlasCache.get(key);
-
-  const canvas = new OffscreenCanvas(fontSize * 2, fontSize * 2);
-  const ctx = canvas.getContext('2d');
-  ctx.font = `${fontSize}px monospace`;
-  const m = ctx.measureText('M');
-  const cw = Math.max(1, Math.ceil(m.width));
-  const ch = Math.max(1, Math.ceil(fontSize * 1.15));
-
-  const atlas = [];
-  for (let i = 0; i < chars.length; i++) {
-    const c = new OffscreenCanvas(cw, ch);
-    const cx = c.getContext('2d');
-    cx.fillStyle = '#000';
-    cx.fillRect(0, 0, cw, ch);
-    cx.fillStyle = '#fff';
-    cx.font = `${fontSize}px monospace`;
-    cx.textBaseline = 'top';
-    cx.fillText(chars[i], 0, 0);
-    const data = cx.getImageData(0, 0, cw, ch).data;
-    const f32 = new Float32Array(cw * ch);
-    for (let j = 0; j < cw * ch; j++) f32[j] = data[j * 4] / 255.0;
-    atlas.push(f32);
+function _computeGradientSaliency(rgba, srcW, srcH, cols, rows) {
+  // Fallback: Sobel gradient energy, resized to grid
+  const bright = computeBrightness(rgba, srcW, srcH);
+  const small = resizeGray(bright, srcW, srcH, cols, rows);
+  const { gx, gy } = sobel(small, cols, rows);
+  const mag = new Float32Array(cols * rows);
+  let maxM = 0;
+  for (let i = 0; i < mag.length; i++) {
+    mag[i] = Math.sqrt(gx[i] * gx[i] + gy[i] * gy[i]);
+    if (mag[i] > maxM) maxM = mag[i];
   }
-
-  const result = { atlas, cw, ch };
-  _glyphAtlasCache.set(key, result);
-  return result;
+  const out = new Float32Array(cols * rows);
+  for (let i = 0; i < mag.length; i++) out[i] = maxM > 0 ? mag[i] / maxM : 0;
+  return out;
 }
 
-export function glyphMatchChars(imgArray, srcW, srcH, chars, cols, charAspect = 0.45, fontSize = 13, invert = false) {
-  const { atlas, cw, ch } = _buildGlyphAtlas(chars, fontSize);
-  const rows = Math.max(1, Math.round(cols * (srcH / srcW) * charAspect));
- 
-  const bright = computeBrightness(imgArray, srcW, srcH);
-  const grayResized = resizeGray(bright, srcW, srcH, cols * cw, rows * ch);
- 
-  const P = cw * ch;
- 
-  const glyphMean = new Float32Array(chars.length);
-  const glyphStd = new Float32Array(chars.length);
-  for (let i = 0; i < chars.length; i++) {
-    let sum = 0;
-    for (let p = 0; p < P; p++) sum += atlas[i][p];
-    glyphMean[i] = sum / P;
-    let sq = 0;
-    for (let p = 0; p < P; p++) {
-      const d = atlas[i][p] - glyphMean[i];
-      sq += d * d;
-    }
-    glyphStd[i] = Math.sqrt(sq / P) + 1e-8;
-  }
- 
-  const charGrid = [];
-  for (let y = 0; y < rows; y++) {
-    const row = [];
-    for (let x = 0; x < cols; x++) {
-      const py = y * ch, px = x * cw;
- 
-      let pSum = 0;
-      const patch = new Float32Array(P);
-      for (let cy = 0; cy < ch; cy++) {
-        for (let cx = 0; cx < cw; cx++) {
-          let v = grayResized[(py + cy) * (cols * cw) + (px + cx)] / 255.0;
-          if (invert) v = 1.0 - v;
-          patch[cy * cw + cx] = v;
-          pSum += v;
-        }
-      }
-      const pMean = pSum / P;
-      let pSq = 0;
-      for (let p = 0; p < P; p++) {
-        const d = patch[p] - pMean;
-        pSq += d * d;
-      }
-      const pStd = Math.sqrt(pSq / P);
- 
-      if (pStd < 0.04) {
-        const idx = Math.max(0, Math.min(chars.length - 1, Math.round(pMean * (chars.length - 1))));
-        row.push(chars[idx]);
-        continue;
-      }
- 
-      let bestNCC = -Infinity;
-      let bestIdx = 0;
-      for (let i = 0; i < chars.length; i++) {
-        let cross = 0;
-        const G = atlas[i];
-        const gm = glyphMean[i];
-        for (let p = 0; p < P; p++) {
-          cross += (patch[p] - pMean) * (G[p] - gm);
-        }
-        const ncc = cross / (P * pStd * glyphStd[i]);
-        if (ncc > bestNCC) { bestNCC = ncc; bestIdx = i; }
-      }
-      row.push(chars[bestIdx]);
-    }
-    charGrid.push(row);
-  }
-  return charGrid;
-}
-
-// FIX 3: _FAM_FLAT changed from ' .·`' to ' .,-'
-// The original chars are near-invisible on dark backgrounds at small font sizes.
-// ',' and '-' have enough ink mass to be visible in the Courier New monospace grid.
-const _FAM_H = ' -_~=─━';
-const _FAM_V = ' :|Il!1';
-const _FAM_D1 = ' ./';
-const _FAM_D2 = ' .\\';
-const _FAM_ISO = ' .·*oO0@#';
-const _FAM_FLAT = ' .:-=+*#%';
-
-function _cellStructureTensor(imgArray, srcW, srcH, rows, cols) {
-  const cellH = Math.max(4, Math.floor(srcH / rows));
-  const cellW = Math.max(4, Math.floor(srcW / cols));
-  const targetH = rows * cellH;
-  const targetW = cols * cellW;
-
-  const bright = computeBrightness(imgArray, srcW, srcH);
-  const grayHi = resizeGray(bright, srcW, srcH, targetW, targetH);
-
-  for (let i = 0; i < grayHi.length; i++) grayHi[i] /= 255.0;
-
-  const { gx: Ix, gy: Iy } = sobel(grayHi, targetW, targetH);
-
-  const coh = new Float32Array(rows * cols);
-  const ori = new Float32Array(rows * cols);
-  const eng = new Float32Array(rows * cols);
-
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      let Sx = 0, Sy = 0, Sxy = 0;
-      let py = r * cellH, px = c * cellW;
-      for (let cy = 0; cy < cellH; cy++) {
-        for (let cx = 0; cx < cellW; cx++) {
-          const idx = (py + cy) * targetW + (px + cx);
-          const ix = Ix[idx], iy = Iy[idx];
-          Sx += ix * ix; Sy += iy * iy; Sxy += ix * iy;
-        }
-      }
-      const trace = Sx + Sy;
-      const det = Sx * Sy - Sxy * Sxy;
-      const disc = Math.sqrt(Math.max(0, (trace * 0.5) * (trace * 0.5) - det));
-      const lam1 = trace * 0.5 + disc;
-      const lam2 = trace * 0.5 - disc;
-
-      const idx = r * cols + c;
-      coh[idx] = (lam1 - lam2) / (lam1 + lam2 + 1e-8);
-      let angle = Math.atan2(2 * Sxy, Sx - Sy) * 0.5 * 180 / Math.PI;
-      if (angle < 0) angle += 180;
-      ori[idx] = angle;
-      eng[idx] = lam1 + lam2;
-    }
-  }
-  return { coh, ori, eng };
-}
-
-// FIX 4: Default cohThresh lowered 0.45→0.25, engThresh lowered 0.10→0.02.
-// The old defaults sent ~90% of cells into _FAM_FLAT, producing near-blank output.
-// Lower thresholds let more cells reach the ISO and directional char families.
-export function frequencyAwareChars(imgArray, srcW, srcH, chars, cols, rows, charAspect = 0.45, invert = false, cohThresh = 0.25, engThresh = 0.02) {
-  const bright = computeBrightness(imgArray, srcW, srcH);
-  let small = resizeGray(bright, srcW, srcH, cols, rows);
-  const rawSmall = new Float32Array(small);
-  small = equalizeHistogram(small, cols, rows);
-  small = applyGamma(small, 0.8);
-
-  const charGrid = brightnessToChars(small, cols, rows, chars, invert);
-  const { coh, ori, eng } = _cellStructureTensor(imgArray, srcW, srcH, rows, cols);
-
-  let mxEng = 0;
-  for (let i = 0; i < eng.length; i++) if (eng[i] > mxEng) mxEng = eng[i];
-
-
-  for (let y = 0; y < rows; y++) {
-    for (let x = 0; x < cols; x++) {
-      const idx = y * cols + x;
-      const engN = eng[idx] / (mxEng + 1e-8);
-      let luma = rawSmall[idx] / 255.0;
-      if (invert) luma = 1.0 - luma;
-
-      if (engN < engThresh) {
-        const cIdx = Math.max(0, Math.min(_FAM_FLAT.length - 1, Math.round(luma * (_FAM_FLAT.length - 1))));
-        charGrid[y][x] = _FAM_FLAT[cIdx];
-      } else if (coh[idx] < cohThresh) {
-        const cIdx = Math.max(0, Math.min(_FAM_ISO.length - 1, Math.round(luma * (_FAM_ISO.length - 1))));
-        charGrid[y][x] = _FAM_ISO[cIdx];
-      } else {
-        const bin = Math.floor(ori[idx] / 45.0) % 4;
-        const families = [_FAM_H, _FAM_D1, _FAM_V, _FAM_D2];
-        const fam = families[bin];
-        const cIdx = Math.max(0, Math.min(fam.length - 1, Math.round(luma * (fam.length - 1))));
-        charGrid[y][x] = fam[cIdx];
-      }
-    }
-  }
-  return charGrid;
-}
-
-export function glyphSpaceErrorDiffusion(imgArray, srcW, srcH, chars, cols, rows, charAspect = 0.45, fontSize = 13, invert = false) {
-  const { atlas, cw, ch } = _buildGlyphAtlas(chars, fontSize);
-  const bright = computeBrightness(imgArray, srcW, srcH);
-  const grayResized = resizeGray(bright, srcW, srcH, cols * cw, rows * ch);
- 
-  const err = new Float32Array((rows * ch + ch) * (cols * cw + cw));
-  const errW = cols * cw + cw;
-  const P = cw * ch;
- 
-  // Gamma encode/decode helpers for perceptual error diffusion
-  const GAMMA = 2.2;
-  const toPerceptual = (v) => Math.pow(Math.max(0, Math.min(1, v)), 1 / GAMMA);
-  const toLinear = (v) => Math.pow(Math.max(0, Math.min(1, v)), GAMMA);
- 
-  // Precompute glyph stats in perceptual space
-  const glyphMeanP = new Float32Array(chars.length);
-  const glyphStdP = new Float32Array(chars.length);
-  const atlasP = [];
-  for (let i = 0; i < chars.length; i++) {
-    const gp = new Float32Array(P);
-    let sum = 0;
-    for (let p = 0; p < P; p++) {
-      gp[p] = toPerceptual(atlas[i][p]);
-      sum += gp[p];
-    }
-    atlasP.push(gp);
-    glyphMeanP[i] = sum / P;
-    let sq = 0;
-    for (let p = 0; p < P; p++) {
-      const d = gp[p] - glyphMeanP[i];
-      sq += d * d;
-    }
-    glyphStdP[i] = Math.sqrt(sq / P) + 1e-8;
-  }
- 
-  const charGrid = [];
-  for (let y = 0; y < rows; y++) {
-    const row = [];
-    for (let x = 0; x < cols; x++) {
-      const py = y * ch, px = x * cw;
-      const patch = new Float32Array(P);
-      let pSum = 0;
- 
-      // Build patch in perceptual space with error accumulation
-      for (let cy = 0; cy < ch; cy++) {
-        for (let cx = 0; cx < cw; cx++) {
-          let v = grayResized[(py + cy) * (cols * cw) + (px + cx)] / 255.0;
-          if (invert) v = 1.0 - v;
-          // Add accumulated error in linear space, then convert to perceptual
-          const vLinear = Math.max(0, Math.min(1, v + err[(py + cy) * errW + (px + cx)]));
-          const vPerceptual = toPerceptual(vLinear);
-          patch[cy * cw + cx] = vPerceptual;
-          pSum += vPerceptual;
-        }
-      }
- 
-      const pMean = pSum / P;
-      let pSq = 0;
-      for (let p = 0; p < P; p++) {
-        const d = patch[p] - pMean;
-        pSq += d * d;
-      }
-      const pStd = Math.sqrt(pSq / P);
- 
-      // Low-contrast fallback
-      let bestIdx = 0;
-      if (pStd < 0.04) {
-        bestIdx = Math.max(0, Math.min(chars.length - 1, Math.round(pMean * (chars.length - 1))));
-      } else {
-        // NCC in perceptual space
-        let bestNCC = -Infinity;
-        for (let i = 0; i < chars.length; i++) {
-          let cross = 0;
-          const GP = atlasP[i];
-          const gm = glyphMeanP[i];
-          for (let p = 0; p < P; p++) {
-            cross += (patch[p] - pMean) * (GP[p] - gm);
-          }
-          const ncc = cross / (P * pStd * glyphStdP[i]);
-          if (ncc > bestNCC) { bestNCC = ncc; bestIdx = i; }
-        }
-      }
- 
-      row.push(chars[bestIdx]);
- 
-      // Propagate error in linear space (Floyd-Steinberg weights)
-      const bestGP = atlasP[bestIdx];
-      for (let cy = 0; cy < ch; cy++) {
-        for (let cx = 0; cx < cw; cx++) {
-          // Convert both back to linear for error computation
-          const pLinear = toLinear(patch[cy * cw + cx]);
-          const gLinear = toLinear(bestGP[cy * cw + cx]);
-          const res = pLinear - gLinear;
- 
-          if (x + 1 < cols && cx === cw - 1)
-            err[(py + cy) * errW + (px + cw)] += res * 7 / 16;
-          if (y + 1 < rows && cy === ch - 1) {
-            if (x > 0 && cx === 0)
-              err[(py + ch) * errW + (px - 1)] += res * 3 / 16;
-            err[(py + ch) * errW + (px + cx)] += res * 5 / 16;
-            if (x + 1 < cols && cx === cw - 1)
-              err[(py + ch) * errW + (px + cw)] += res * 1 / 16;
-          }
-        }
-      }
-    }
-    charGrid.push(row);
-  }
-  return charGrid;
-}
-
-export function fusedV6Chars(bright, rawBright, msCtx, cols, rows, chars, invert = false) {
-  const d0 = msCtx.d0, d1 = msCtx.d1, d2 = msCtx.d2;
+/**
+ * applyMLSaliencyToChars
+ * Uses the saliency map to locally increase character density (darker chars)
+ * in high-importance regions and reduce density in low-importance regions.
+ * This modulates char selection, not just brightness — so it affects rendering quality,
+ * not just tone.
+ */
+export function applyMLSaliencyToChars(charGrid, salMap, cols, rows, chars, boost = 0.6) {
   const n = chars.length - 1;
-  const charGrid = [];
-
+  const newGrid = charGrid.map(r => [...r]);
   for (let y = 0; y < rows; y++) {
-    const row = [];
     for (let x = 0; x < cols; x++) {
-      const idx = y * cols + x;
-      const E_tex = Math.abs(d0[idx]);
-      const E_edge = Math.abs(d1[idx]);
-      const E_struct = Math.abs(d2[idx]);
-      const E_sum = E_tex + E_edge + E_struct + 1e-8;
-      const w_tex = E_tex / E_sum;
-      const w_edge = E_edge / E_sum;
-      const w_struct = E_struct / E_sum;
-
-      let luma = bright[idx] / 255.0;
-      if (invert) luma = 1.0 - luma;
-
-      const idxBase = Math.round(luma * n);
-      const texIdx = Math.max(0, Math.min(n, Math.round(idxBase + w_tex * 3)));
-      const structIdx = Math.max(0, Math.min(n, Math.round(idxBase - w_struct * 2)));
-
-      let finalIdx = Math.round(idxBase * (1 - w_edge) + texIdx * w_tex + structIdx * w_struct);
-      finalIdx = Math.max(0, Math.min(n, finalIdx));
-
-      row.push(chars[finalIdx]);
+      const sal = salMap[y * cols + x]; // [0, 1]
+      const currentChar = charGrid[y][x];
+      const currentIdx = chars.indexOf(currentChar);
+      if (currentIdx < 0) continue;
+      // Shift char index: high saliency → denser char; low → sparser
+      const shift = Math.round((sal - 0.5) * 2 * boost * (n * 0.15));
+      const newIdx = Math.max(0, Math.min(n, currentIdx + shift));
+      newGrid[y][x] = chars[newIdx];
     }
-    charGrid.push(row);
   }
-  return charGrid;
+  return newGrid;
 }
 
 export function renderToCanvas(charGrid, brightness, colourData, opts) {
@@ -1033,14 +811,13 @@ function loadScript(src) {
   });
 }
 
-export function runPipeline(img, params) {
+export async function runPipeline(img, params) {
   const {
     cols, charset, contrast, gamma, exposure, edgeWeight, sharpen,
     vignette, grain, equalize, dither, invert, showMask, alphaThreshold, charAspect,
     colourMode, attenuation, fgHex, bgHex, fontSize, outputFont,
     multiscale, multiscaleBoost,
-    saliencyAware, saliencyBoost,
-    fusionV6, freqAware, freqAwareCohThresh, freqAwareEngThresh, glyphMatch, glyphErrDiff,
+    mlSaliency, mlSaliencyBoost,
   } = params;
 
   const { data: rgba, w: srcW, h: srcH } = img;
@@ -1058,45 +835,26 @@ export function runPipeline(img, params) {
   }
   const alphaResized = hasAlpha ? resizeForAscii(alphaRaw, srcW, srcH, cols, charAspect).small : null;
 
-  let msCtx = null;
-  if (fusionV6) {
-    msCtx = applyMultiscaleEnhancement(bright, gridCols, rows, multiscaleBoost);
-  } else if (multiscale) {
-    msCtx = applyMultiscaleEnhancement(bright, gridCols, rows, multiscaleBoost);
-    bright = msCtx.base;
-  }
-
   const colourResized = colourMode ? resizeColour(sharpened, srcW, srcH, gridCols, charAspect) : null;
-
-  // FIX 5: Glyph modes (glyphMatch, glyphErrDiff) operate directly on the raw
-  // sharpened image using pixel-level SSD matching. Applying vignette and
-  // edgeBiasedBrightness to the brightness grid beforehand darkens most of the
-  // image, causing SSD to always prefer sparse/light chars like '.' and ','.
-  // Skip those two steps for glyph modes so the atlas matching gets clean input.
-  const isGlyphMode = glyphMatch || glyphErrDiff;
 
   const rawBright = new Float32Array(bright);
   if (equalize) bright = equalizeHistogram(bright, gridCols, rows);
   bright = applyExposure(bright, exposure || 1.0);
   bright = applyGamma(bright, gamma);
   bright = applyContrast(bright, contrast);
-
-  if (!isGlyphMode) {
-    bright = applyVignette(bright, gridCols, rows, vignette);
-    bright = edgeBiasedBrightness(bright, gridCols, rows, edgeWeight);
-  }
-
+  bright = applyVignette(bright, gridCols, rows, vignette);
+  bright = edgeBiasedBrightness(bright, gridCols, rows, edgeWeight);
   bright = applyFilmGrain(bright, grain);
-
-  if (saliencyAware) {
-    const sal = computeSaliency(bright, gridCols, rows);
-    bright = applySaliencyToBrightness(bright, sal, gridCols, rows, saliencyBoost);
-  }
 
   const rawChars = charset === 'custom' && params.customCharset
     ? params.customCharset
     : (RAW_CHARSETS[charset] || RAW_CHARSETS.full);
   const chars = measureCharDensity(rawChars);
+
+  // Binary uses its own density-pattern halftoning — Floyd-Steinberg corrupts it
+  const strippedChars = chars.replace(/\s/g, '');
+  const isBinaryCharset = strippedChars === '01' || strippedChars === '10';
+
   let charGrid;
 
   if (showMask) {
@@ -1110,18 +868,16 @@ export function runPipeline(img, params) {
       }
       charGrid.push(row);
     }
-  } else if (freqAware) {
-    charGrid = frequencyAwareChars(sharpened, srcW, srcH, chars, gridCols, rows, charAspect, invert, freqAwareCohThresh, freqAwareEngThresh);
-  } else if (glyphMatch) {
-    charGrid = glyphMatchChars(sharpened, srcW, srcH, chars, gridCols, charAspect, fontSize, invert);
-  } else if (glyphErrDiff) {
-    charGrid = glyphSpaceErrorDiffusion(sharpened, srcW, srcH, chars, gridCols, rows, charAspect, fontSize, invert);
-  } else if (fusionV6 && msCtx) {
-    charGrid = fusedV6Chars(bright, rawBright, msCtx, gridCols, rows, chars, invert);
   } else {
     let processedBright = bright;
-    if (dither) processedBright = floydSteinberg(bright, gridCols, rows, chars.length);
+    if (dither && !isBinaryCharset) processedBright = floydSteinberg(bright, gridCols, rows, chars.length);
     charGrid = brightnessToChars(processedBright, gridCols, rows, chars, invert);
+  }
+
+  // ML Saliency: run after base char grid is built, modulate char density per-cell
+  if (mlSaliency && !showMask) {
+    const salMap = await computeMLSaliency(sharpened, srcW, srcH, gridCols, rows);
+    charGrid = applyMLSaliencyToChars(charGrid, salMap, gridCols, rows, chars, mlSaliencyBoost);
   }
 
   if (!showMask && hasAlpha) {

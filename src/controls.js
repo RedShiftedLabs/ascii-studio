@@ -25,14 +25,8 @@ export const DEFAULT_PARAMS = {
   colourMode: false,
   fontSize: 6,
   outputFont: "'Courier New',Courier,monospace",
-  saliencyAware: false,
-  saliencyBoost: 0.60,
-  fusionV6: false,
-  freqAware: false,
-  freqAwareCohThresh: 0.25,
-  freqAwareEngThresh: 0.02,
-  glyphMatch: false,
-  glyphErrDiff: false,
+  mlSaliency: false,
+  mlSaliencyBoost: 0.60,
 };
 
 export function initControls(onChange) {
@@ -161,45 +155,8 @@ export function initControls(onChange) {
     state.fgHex = e.target.value; onChange(state);
   });
 
-  bindCheckbox('saliency_aware', 'saliencyAware', 'saliency-sub');
-  bindSlider('saliency_boost', 'saliencyBoost');
-
-  const _advancedModes = [
-    { id: 'fusion_v6', key: 'fusionV6' },
-    { id: 'freq_aware', key: 'freqAware', subCtrlId: 'freq-aware-sub' },
-    { id: 'glyph_match', key: 'glyphMatch' },
-    { id: 'glyph_err_diff', key: 'glyphErrDiff' },
-  ];
-
-  _advancedModes.forEach(({ id, key, subCtrlId }) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.checked = state[key];
-    const sub = subCtrlId ? document.getElementById(subCtrlId) : null;
-    if (sub) sub.style.display = state[key] ? '' : 'none';
-    el.addEventListener('change', () => {
-      if (el.checked) {
-        _advancedModes.forEach(m => {
-          if (m.id !== id) {
-            state[m.key] = false;
-            const other = document.getElementById(m.id);
-            if (other) other.checked = false;
-            if (m.subCtrlId) {
-              const subEl = document.getElementById(m.subCtrlId);
-              if (subEl) subEl.style.display = 'none';
-            }
-          }
-        });
-      }
-      state[key] = el.checked;
-      if (sub) sub.style.display = el.checked ? '' : 'none';
-      onChange(state);
-    });
-  });
-
-  // Frequency-aware thresholds
-  bindSlider('freq_aware_coh_thresh', 'freqAwareCohThresh');
-  bindSlider('freq_aware_eng_thresh', 'freqAwareEngThresh');
+  bindCheckbox('ml_saliency', 'mlSaliency', 'ml-saliency-sub');
+  bindSlider('ml_saliency_boost', 'mlSaliencyBoost');
 
   bindSlider('font_size', 'fontSize', v => v);
   const fontSelect = document.getElementById('output_font');
@@ -290,20 +247,15 @@ export function initControls(onChange) {
     document.getElementById('val-grain').textContent = DEFAULT_PARAMS.grain.toFixed(2);
     document.getElementById('multiscale_boost').value = DEFAULT_PARAMS.multiscaleBoost;
     document.getElementById('val-multiscale_boost').textContent = DEFAULT_PARAMS.multiscaleBoost.toFixed(2);
-    document.getElementById('saliency_boost').value = DEFAULT_PARAMS.saliencyBoost;
-    document.getElementById('val-saliency_boost').textContent = DEFAULT_PARAMS.saliencyBoost.toFixed(2);
-    document.getElementById('freq_aware_coh_thresh').value = DEFAULT_PARAMS.freqAwareCohThresh;
-    document.getElementById('val-freq_aware_coh_thresh').textContent = DEFAULT_PARAMS.freqAwareCohThresh.toFixed(2);
-    document.getElementById('freq_aware_eng_thresh').value = DEFAULT_PARAMS.freqAwareEngThresh;
-    document.getElementById('val-freq_aware_eng_thresh').textContent = DEFAULT_PARAMS.freqAwareEngThresh.toFixed(2);
+    document.getElementById('ml_saliency_boost').value = DEFAULT_PARAMS.mlSaliencyBoost;
+    document.getElementById('val-ml_saliency_boost').textContent = DEFAULT_PARAMS.mlSaliencyBoost.toFixed(2);
     document.getElementById('font_size').value = DEFAULT_PARAMS.fontSize;
     document.getElementById('val-font_size').textContent = DEFAULT_PARAMS.fontSize;
 
-    ['equalize', 'dither', 'invert', 'show_mask', 'multiscale', 'saliency_aware',
-      'fusion_v6', 'freq_aware', 'glyph_match', 'glyph_err_diff'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.checked = !!DEFAULT_PARAMS[id.replace(/_([a-z])/g, (_, c) => c.toUpperCase())];
-      });
+    ['equalize', 'dither', 'invert', 'show_mask', 'multiscale', 'ml_saliency'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.checked = !!DEFAULT_PARAMS[id.replace(/_([a-z])/g, (_, c) => c.toUpperCase())];
+    });
 
     document.getElementById('charset').value = DEFAULT_PARAMS.charset;
     document.getElementById('theme').value = DEFAULT_PARAMS.theme;
@@ -313,8 +265,7 @@ export function initControls(onChange) {
     document.getElementById('bg_hex').value = defTheme.bg;
     document.getElementById('fg_hex').value = defTheme.fg;
     document.getElementById('multiscale-sub').style.display = 'none';
-    document.getElementById('saliency-sub').style.display = 'none';
-    document.getElementById('freq-aware-sub').style.display = 'none';
+    document.getElementById('ml-saliency-sub').style.display = 'none';
     updateThemeSwatch(defTheme);
     flashColorPickers();
     updateGammaWarn();

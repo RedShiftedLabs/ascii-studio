@@ -51,18 +51,12 @@ export async function render(params) {
     outputFont: params.outputFont,
     multiscale: params.multiscale,
     multiscaleBoost: params.multiscaleBoost,
-    saliencyAware: params.saliencyAware,
-    saliencyBoost: params.saliencyBoost,
-    fusionV6: params.fusionV6,
-    freqAware: params.freqAware,
-    freqAwareCohThresh: params.freqAwareCohThresh,
-    freqAwareEngThresh: params.freqAwareEngThresh,
-    glyphMatch: params.glyphMatch,
-    glyphErrDiff: params.glyphErrDiff,
+    mlSaliency: params.mlSaliency,
+    mlSaliencyBoost: params.mlSaliencyBoost,
     customCharset: params.customCharset || '',
   };
 
-  lastResult = runPipeline(currentImg, enriched);
+  lastResult = await runPipeline(currentImg, enriched);
   lastParams = enriched;
 
   return renderToCanvas(lastResult.charGrid, lastResult.brightness, lastResult.colourData, {
