@@ -606,12 +606,12 @@ export function glyphMatchChars(imgArray, srcW, srcH, chars, cols, charAspect = 
 // FIX 3: _FAM_FLAT changed from ' .·`' to ' .,-'
 // The original chars are near-invisible on dark backgrounds at small font sizes.
 // ',' and '-' have enough ink mass to be visible in the Courier New monospace grid.
-const _FAM_H = '-_=~─━';
-const _FAM_V = '|Il!1';
-const _FAM_D1 = '/';
-const _FAM_D2 = '\\';
-const _FAM_ISO = '@#%&WMm*8B';
-const _FAM_FLAT = ' .,-';  // was ' .·`' — middot and backtick vanish at small sizes
+const _FAM_H = ' -_~=─━';
+const _FAM_V = ' :|Il!1';
+const _FAM_D1 = ' ./';
+const _FAM_D2 = ' .\\';
+const _FAM_ISO = ' .·*oO0@#';
+const _FAM_FLAT = ' .:-=+*#%';
 
 function _cellStructureTensor(imgArray, srcW, srcH, rows, cols) {
   const cellH = Math.max(4, Math.floor(srcH / rows));
@@ -674,7 +674,6 @@ export function frequencyAwareChars(imgArray, srcW, srcH, chars, cols, rows, cha
   let mxEng = 0;
   for (let i = 0; i < eng.length; i++) if (eng[i] > mxEng) mxEng = eng[i];
 
-  const dirChars = [_FAM_H[0], _FAM_D1[0], _FAM_V[0], _FAM_D2[0]];
 
   for (let y = 0; y < rows; y++) {
     for (let x = 0; x < cols; x++) {
@@ -691,7 +690,10 @@ export function frequencyAwareChars(imgArray, srcW, srcH, chars, cols, rows, cha
         charGrid[y][x] = _FAM_ISO[cIdx];
       } else {
         const bin = Math.floor(ori[idx] / 45.0) % 4;
-        charGrid[y][x] = dirChars[bin];
+        const families = [_FAM_H, _FAM_D1, _FAM_V, _FAM_D2];
+        const fam = families[bin];
+        const cIdx = Math.max(0, Math.min(fam.length - 1, Math.round(luma * (fam.length - 1))));
+        charGrid[y][x] = fam[cIdx];
       }
     }
   }
