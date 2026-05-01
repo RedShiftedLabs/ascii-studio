@@ -884,7 +884,7 @@ export async function runPipeline(img, params) {
   const alphaRaw = new Float32Array(srcW * srcH);
   let hasAlpha = false;
   for (let i = 0; i < srcW * srcH; i++) {
-    alphaRaw[i] = rgba[i * 4 + 3];
+    alphaRaw[i] = rgba.data[i * 4 + 3];
     if (alphaRaw[i] < 255) hasAlpha = true;
   }
   const alphaResized = hasAlpha ? resizeForAscii(alphaRaw, srcW, srcH, cols, charAspect).small : null;

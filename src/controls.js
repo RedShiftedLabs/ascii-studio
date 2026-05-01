@@ -203,6 +203,7 @@ export function initControls(onChange) {
     portrait_binary: PORTRAIT_BINARY_DEFAULTS,
   };
 
+  const presetDropdown = document.getElementById('tone_preset');
   if (presetDropdown) {
     presetDropdown.addEventListener('change', (e) => {
       const preset = TONE_PRESETS[e.target.value];
