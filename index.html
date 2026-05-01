@@ -67,6 +67,11 @@
               <option value="edges">Edges &nbsp; .-+|/\xX#@</option>
               <option value="binary">Binary &nbsp; 0 1</option>
               <option value="numbers">Numbers &nbsp; 0–9</option>
+              <option value="scanlines">Scanlines &nbsp; ─━═╌╍║</option>
+              <option value="circuit">Circuit &nbsp; .·+×╋┼</option>
+              <option value="japanese">Japanese &nbsp; ｦｧｨｱｲｳ</option>
+              <option value="math">Math &nbsp; ·∘∙○◦+×</option>
+              <option value="shadows">Shadows &nbsp; ░▒▓█▉▊</option>
               <option value="custom">Custom…</option>
             </select>
           </div>
@@ -254,13 +259,13 @@
           </div>
           <div class="sub-ctrl" id="freq-aware-sub">
             <div class="ctrl">
-              <div class="ctrl-label">Coherence threshold <span class="ctrl-val" id="val-freq_aware_coh_thresh">0.45</span></div>
-              <input type="range" id="freq_aware_coh_thresh" min="0" max="1" step="0.05" value="0.45"
+              <div class="ctrl-label">Coherence threshold <span class="ctrl-val" id="val-freq_aware_coh_thresh">0.25</span></div>
+              <input type="range" id="freq_aware_coh_thresh" min="0" max="1" step="0.05" value="0.25"
                 title="Lower = more directional chars. Higher = more texture chars."/>
             </div>
             <div class="ctrl">
-              <div class="ctrl-label">Energy threshold <span class="ctrl-val" id="val-freq_aware_eng_thresh">0.10</span></div>
-              <input type="range" id="freq_aware_eng_thresh" min="0" max="0.5" step="0.02" value="0.10"
+              <div class="ctrl-label">Energy threshold <span class="ctrl-val" id="val-freq_aware_eng_thresh">0.02</span></div>
+              <input type="range" id="freq_aware_eng_thresh" min="0" max="0.5" step="0.02" value="0.02"
                 title="Lower = more flat chars in low-detail areas. Higher = more directional chars everywhere."/>
             </div>
           </div>
@@ -407,6 +412,6 @@
   <span id="toast-msg"></span>
 </div>
 
-<script type="module" src="src/main.js?v=10"></script>
+<script type="module" src="src/main.js?v=11"></script>
 </body>
 </html>
