@@ -1,6 +1,6 @@
 # ASCII Studio
 
-A high-performance, client-side workstation for advanced ASCII synthesis. ASCII Studio leverages computer vision and machine learning to transform images into high-fidelity character-based art, operating entirely within the browser environment.
+A high-performance, client-side workstation for advanced ASCII synthesis. ASCII Studio leverages computer vision and neural networks to transform images into high-fidelity character-based art, operating entirely within the browser environment.
 
 **[Launch Live Application](https://redshiftedlabs.github.io/ascii-studio/)**
 
@@ -8,17 +8,17 @@ A high-performance, client-side workstation for advanced ASCII synthesis. ASCII 
 
 ## Core Technologies
 
-### V6 Perceptual Fusion Engine
-The V6 engine represents our most sophisticated rendering pipeline. It utilizes multi-scale Laplacian decomposition to isolate high-frequency textures from structural edges. This allows for the simultaneous preservation of fine details (such as hair or typography) and sharp contours, even at extreme downsampling ratios.
+### Neural Saliency Synthesis
+Utilizing TensorFlow.js and MobileNetV2 to perform semantic analysis of image content. The engine computes a real-time attention map to identify semantically important regions (such as faces or objects) and dynamically modulates character density. This ensures that the viewer's focus is naturally drawn to the most significant parts of the composition.
 
 ### Neural Background Isolation
 Integrated subject isolation via `@imgly/background-removal`. This feature provides one-click foreground extraction powered by local WASM and ONNX execution. Users can isolate complex subjects and render them into ASCII while maintaining a clean, noise-free composition.
 
-### S-Tier Glyph Mapping
-Moving beyond traditional luminance-based lookup, our S-Tier engine implements pixel-level SSD (Sum of Squared Differences) and NCC (Normalized Cross-Correlation) matching. By comparing image patches against a pre-rendered glyph atlas, the system identifies characters that match the geometric topology of the source, rather than just its brightness.
+### Organic Binary Halftoning
+Our specialized binary rendering engine moves beyond simple thresholding. It uses deterministic pattern rotation and variable-density 0/1 clusters to create an organic, structured look that mimics the clustered halftoning found in high-end digital print, providing a sophisticated "Matrix" aesthetic.
 
-### Frequency-Aware Synthesis
-Utilizing local structure tensors to calculate orientation and coherence. The engine dynamically switches between specialized character families—directional strokes (`/`, `\`, `|`, `-`) for edges, and high-entropy characters for textured regions—resulting in a significantly more "readable" and artistic output.
+### Local Contrast Optimization
+The engine implements a CLAHE-style (Contrast-Limited Adaptive Histogram Equalization) pipeline to ensure detail preservation across all luminance ranges. This prevents highlights from washing out and ensures deep shadows remain textured, providing a professional-grade dynamic range in the final ASCII output.
 
 ---
 
@@ -29,7 +29,7 @@ Utilizing local structure tensors to calculate orientation and coherence. The en
 | :--- | :--- |
 | **Tone Mapping** | CLAHE (Local Contrast), Gamma Correction, Exposure Bias, Edge Accentuation |
 | **Aesthetics** | Floyd-Steinberg Dithering, Simulated Film Grain, Dynamic Vignetting, Attenuation |
-| **Advanced** | Saliency-Aware Focal Rendering, Glyph-Space Error Diffusion, Multi-Scale Detail Boost |
+| **Advanced** | Neural Saliency Rendering, Organic Binary Synthesis, Multi-Scale Enhancement |
 
 ### Asset Library
 > [!TIP]
@@ -43,12 +43,12 @@ Utilizing local structure tensors to calculate orientation and coherence. The en
 
 ## Technical Architecture
 
-ASCII Studio is built on a zero-dependency core designed for low-latency execution and high memory efficiency.
+ASCII Studio is built on a high-performance core designed for low-latency execution and high memory efficiency.
 
 - **Frontend**: Vanilla ECMAScript (ES6+) Modules
 - **Graphics**: HTML5 Canvas with High-DPR (Retina) support
-- **ML Infrastructure**: WebAssembly + ONNX Runtime
-- **Algorithms**: Custom Sobel operators, Laplacian Pyramids, and Bilinear Interpolation for real-time previewing.
+- **ML Infrastructure**: TensorFlow.js (MobileNetV2) & ONNX Runtime (via `@imgly/background-removal`)
+- **Algorithms**: Bilinear Tile-Interpolation, Sobel Gradient Analysis, and Deterministic Pattern Hashing.
 
 > [!IMPORTANT]
 > All processing is performed locally on your device. No image data is ever transmitted to a server, ensuring total privacy and offline capability.
