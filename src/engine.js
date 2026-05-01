@@ -10,6 +10,11 @@ export const RAW_CHARSETS = {
   edges: ' .-+|/\\xX#@',
   binary: ' 01',
   numbers: ' 1732456908',
+  scanlines: ' ─━═╌╍║│├┤┬┴┼╫╪',
+  circuit:   ' .·+×╋┼├┤╠╣╦╩╬○●◎',
+  japanese:  ' ｦｧｨｩｪｫｬｭｮｯｰｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ',
+  math:      ' ·∘∙○◦+×÷=≠≈∞∑∏∫∂√∇∆',
+  shadows:   ' ░▒▓█▉▊▋▌▍▎▏',
 };
 
 export const THEMES = {
@@ -121,32 +126,107 @@ export function resizeColour(rgba, srcW, srcH, cols, charAspect = 0.45) {
   return { data: dctx.getImageData(0, 0, cols, rows), rows, cols };
 }
 
-// FIX: Added 1% histogram clip to preserve mid-tones.
-// Without this, equalize + contrast pushes pixels to extremes,
-// causing charsets like 'numbers' to only use the first and last char.
-export function equalizeHistogram(b) {
-  const out = new Float32Array(b.length);
+// 5. IMPROVED: equalizeHistogram
+// Changes:
+//   - 1% clip at both ends prevents extreme pixels from
+//     collapsing the tonal range (fixes numbers charset).
+//   - CLAHE-style local contrast: divides image into tiles
+//     and blends local + global equalization. Preserves
+//     mid-tone detail that global equalization crushes.
+//     The blend factor is 0.6 local / 0.4 global.
+export function equalizeHistogram(b, w, h) {
+  // w and h are optional — if not provided, fall back to global-only
+  // (keeps backward compat with callers that only pass b)
+  const useLocal = w !== undefined && h !== undefined && w > 0 && h > 0;
+  const n = b.length;
+  const out = new Float32Array(n);
+ 
+  // --- Global equalization with 1% clip ---
   const hist = new Int32Array(256);
-  for (let i = 0; i < b.length; i++) hist[Math.min(255, Math.max(0, b[i] | 0))]++;
+  for (let i = 0; i < n; i++) hist[Math.min(255, Math.max(0, b[i] | 0))]++;
   const cdf = new Int32Array(256);
   cdf[0] = hist[0];
   for (let i = 1; i < 256; i++) cdf[i] = cdf[i - 1] + hist[i];
-
-  // Clip at 1% on each end to prevent extreme pixel values from dominating
-  const totalPx = b.length;
-  const clipLow = totalPx * 0.01;
-  const clipHigh = totalPx * 0.99;
-  let cdfMin = cdf[0];
-  let cdfMax = cdf[255];
+ 
+  const clipLow = n * 0.01;
+  const clipHigh = n * 0.99;
+  let cdfMin = cdf[0], cdfMax = cdf[255];
   for (let i = 0; i < 256; i++) { if (cdf[i] >= clipLow) { cdfMin = cdf[i]; break; } }
   for (let i = 255; i >= 0; i--) { if (cdf[i] <= clipHigh) { cdfMax = cdf[i]; break; } }
-
-  const range = Math.max(cdfMax - cdfMin, 1);
-  const lut = new Uint8Array(256);
+  const globalRange = Math.max(cdfMax - cdfMin, 1);
+  const globalLut = new Uint8Array(256);
   for (let i = 0; i < 256; i++) {
-    lut[i] = Math.round(Math.max(0, Math.min(255, (cdf[i] - cdfMin) / range * 255)));
+    globalLut[i] = Math.round(Math.max(0, Math.min(255, (cdf[i] - cdfMin) / globalRange * 255)));
   }
-  for (let i = 0; i < b.length; i++) out[i] = lut[Math.min(255, Math.max(0, b[i] | 0))];
+ 
+  if (!useLocal) {
+    for (let i = 0; i < n; i++) out[i] = globalLut[Math.min(255, Math.max(0, b[i] | 0))];
+    return out;
+  }
+ 
+  // --- Local equalization (CLAHE-style) ---
+  // Tile size: aim for ~8 tiles across, minimum 4×4 pixels
+  const tileW = Math.max(4, Math.round(w / 8));
+  const tileH = Math.max(4, Math.round(h / 8));
+  const tilesX = Math.ceil(w / tileW);
+  const tilesY = Math.ceil(h / tileH);
+ 
+  // Build a LUT for each tile
+  const tileLuts = [];
+  for (let ty = 0; ty < tilesY; ty++) {
+    for (let tx = 0; tx < tilesX; tx++) {
+      const x0 = tx * tileW, y0 = ty * tileH;
+      const x1 = Math.min(x0 + tileW, w);
+      const y1 = Math.min(y0 + tileH, h);
+ 
+      const th = new Int32Array(256);
+      for (let y = y0; y < y1; y++) {
+        for (let x = x0; x < x1; x++) {
+          th[Math.min(255, Math.max(0, b[y * w + x] | 0))]++;
+        }
+      }
+      const tc = new Int32Array(256);
+      tc[0] = th[0];
+      for (let i = 1; i < 256; i++) tc[i] = tc[i - 1] + th[i];
+      const tMin = tc.find(v => v > 0) || 0;
+      const tN = (x1 - x0) * (y1 - y0);
+      const tRange = Math.max(tN - tMin, 1);
+      const lut = new Uint8Array(256);
+      for (let i = 0; i < 256; i++) {
+        lut[i] = Math.round(Math.max(0, Math.min(255, (tc[i] - tMin) / tRange * 255)));
+      }
+      tileLuts.push(lut);
+    }
+  }
+ 
+  // Bilinear interpolation between tile LUTs
+  const BLEND = 0.6; // local weight
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const v = Math.min(255, Math.max(0, b[y * w + x] | 0));
+ 
+      // Tile coords (centre-based)
+      const tx = Math.max(0, Math.min(tilesX - 1, Math.floor((x - tileW / 2) / tileW)));
+      const ty = Math.max(0, Math.min(tilesY - 1, Math.floor((y - tileH / 2) / tileH)));
+      const tx2 = Math.min(tilesX - 1, tx + 1);
+      const ty2 = Math.min(tilesY - 1, ty + 1);
+ 
+      const fx = ((x - tileW / 2) / tileW) - tx;
+      const fy = ((y - tileH / 2) / tileH) - ty;
+      const wx = Math.max(0, Math.min(1, fx));
+      const wy = Math.max(0, Math.min(1, fy));
+ 
+      const v00 = tileLuts[ty * tilesX + tx][v];
+      const v10 = tileLuts[ty * tilesX + tx2][v];
+      const v01 = tileLuts[ty2 * tilesX + tx][v];
+      const v11 = tileLuts[ty2 * tilesX + tx2][v];
+      const localVal = v00 * (1 - wx) * (1 - wy) + v10 * wx * (1 - wy)
+                     + v01 * (1 - wx) * wy      + v11 * wx * wy;
+ 
+      const globalVal = globalLut[v];
+      out[y * w + x] = Math.round(localVal * BLEND + globalVal * (1 - BLEND));
+    }
+  }
   return out;
 }
 
@@ -277,31 +357,51 @@ export function sharpenImage(rgba, w, h, strength) {
   return result;
 }
 
-// FIX 1: Binary detection hardened — strip whitespace before comparing,
-//         so density-sorted ' 01' / ' 10' both match correctly.
-// FIX 2: Binary RNG replaced — Math.sin() hash is heavily biased toward '0'.
-//         LCG integer hash gives a proper 50/50 distribution.
 export function brightnessToChars(brightness, w, h, chars, invert = false) {
   const n = chars.length - 1;
   const stripped = chars.replace(/\s/g, '');
   const isBinary = stripped === '01' || stripped === '10';
+ 
+  const isNumbers = /^[0-9]+$/.test(stripped);
+ 
+  const BAYER4 = [
+    [ 0/16,  8/16,  2/16, 10/16],
+    [12/16,  4/16, 14/16,  6/16],
+    [ 3/16, 11/16,  1/16,  9/16],
+    [15/16,  7/16, 13/16,  5/16],
+  ];
+ 
+  // t in [0,1] → slightly boosted mid separation
+  const scurve = (t) => {
+    const s = t * t * (3 - 2 * t);
+    return s * 0.85 + t * 0.15;
+  };
+ 
   const grid = [];
   for (let y = 0; y < h; y++) {
     const row = [];
     for (let x = 0; x < w; x++) {
       let norm = brightness[y * w + x] / 255;
       if (invert) norm = 1 - norm;
-
+ 
       if (isBinary) {
-        if (norm < 0.12) {
+        const threshold = BAYER4[y % 4][x % 4];
+        if (norm < 0.04) {
           row.push(' ');
         } else {
-          // LCG hash — unbiased, deterministic, no trig
-          const hash = (x * 1664525 + y * 1013904223) >>> 0;
-          row.push(hash % 2 === 0 ? '0' : '1');
+          row.push(norm > threshold ? '1' : '0');
+        }
+      } else if (isNumbers) {
+        if (norm < 0.08) {
+          row.push(' ');
+        } else {
+          const band = Math.min(9, Math.floor((norm - 0.08) / 0.092));
+          const charIdx = Math.round((band / 9) * n);
+          row.push(chars[Math.max(0, Math.min(n, charIdx))]);
         }
       } else {
-        const idx = Math.max(0, Math.min(n, Math.round(norm * n)));
+        const curved = scurve(norm);
+        const idx = Math.max(0, Math.min(n, Math.round(curved * n)));
         row.push(chars[idx]);
       }
     }
@@ -434,43 +534,67 @@ function _buildGlyphAtlas(chars, fontSize = 13) {
 export function glyphMatchChars(imgArray, srcW, srcH, chars, cols, charAspect = 0.45, fontSize = 13, invert = false) {
   const { atlas, cw, ch } = _buildGlyphAtlas(chars, fontSize);
   const rows = Math.max(1, Math.round(cols * (srcH / srcW) * charAspect));
-
+ 
   const bright = computeBrightness(imgArray, srcW, srcH);
   const grayResized = resizeGray(bright, srcW, srcH, cols * cw, rows * ch);
-
-  const charGrid = [];
+ 
   const P = cw * ch;
-
-  const G2 = new Float32Array(chars.length);
+ 
+  const glyphMean = new Float32Array(chars.length);
+  const glyphStd = new Float32Array(chars.length);
   for (let i = 0; i < chars.length; i++) {
     let sum = 0;
-    for (let p = 0; p < P; p++) sum += atlas[i][p] * atlas[i][p];
-    G2[i] = sum;
+    for (let p = 0; p < P; p++) sum += atlas[i][p];
+    glyphMean[i] = sum / P;
+    let sq = 0;
+    for (let p = 0; p < P; p++) {
+      const d = atlas[i][p] - glyphMean[i];
+      sq += d * d;
+    }
+    glyphStd[i] = Math.sqrt(sq / P) + 1e-8;
   }
-
+ 
+  const charGrid = [];
   for (let y = 0; y < rows; y++) {
     const row = [];
     for (let x = 0; x < cols; x++) {
+      const py = y * ch, px = x * cw;
+ 
+      let pSum = 0;
       const patch = new Float32Array(P);
-      let py = y * ch, px = x * cw;
-      let X2 = 0;
       for (let cy = 0; cy < ch; cy++) {
         for (let cx = 0; cx < cw; cx++) {
           let v = grayResized[(py + cy) * (cols * cw) + (px + cx)] / 255.0;
           if (invert) v = 1.0 - v;
           patch[cy * cw + cx] = v;
-          X2 += v * v;
+          pSum += v;
         }
       }
-
-      let bestSSD = Infinity;
+      const pMean = pSum / P;
+      let pSq = 0;
+      for (let p = 0; p < P; p++) {
+        const d = patch[p] - pMean;
+        pSq += d * d;
+      }
+      const pStd = Math.sqrt(pSq / P);
+ 
+      if (pStd < 0.04) {
+        const idx = Math.max(0, Math.min(chars.length - 1, Math.round(pMean * (chars.length - 1))));
+        row.push(chars[idx]);
+        continue;
+      }
+ 
+      let bestNCC = -Infinity;
       let bestIdx = 0;
       for (let i = 0; i < chars.length; i++) {
-        let XG = 0;
+        let cross = 0;
         const G = atlas[i];
-        for (let p = 0; p < P; p++) XG += patch[p] * G[p];
-        const ssd = X2 - 2 * XG + G2[i];
-        if (ssd < bestSSD) { bestSSD = ssd; bestIdx = i; }
+        const gm = glyphMean[i];
+        for (let p = 0; p < P; p++) {
+          cross += (patch[p] - pMean) * (G[p] - gm);
+        }
+        const ncc = cross / (P * pStd * glyphStd[i]);
+        if (ncc > bestNCC) { bestNCC = ncc; bestIdx = i; }
       }
       row.push(chars[bestIdx]);
     }
@@ -541,7 +665,7 @@ export function frequencyAwareChars(imgArray, srcW, srcH, chars, cols, rows, cha
   const bright = computeBrightness(imgArray, srcW, srcH);
   let small = resizeGray(bright, srcW, srcH, cols, rows);
   const rawSmall = new Float32Array(small);
-  small = equalizeHistogram(small);
+  small = equalizeHistogram(small, cols, rows);
   small = applyGamma(small, 0.8);
 
   const charGrid = brightnessToChars(small, cols, rows, chars, invert);
@@ -578,56 +702,104 @@ export function glyphSpaceErrorDiffusion(imgArray, srcW, srcH, chars, cols, rows
   const { atlas, cw, ch } = _buildGlyphAtlas(chars, fontSize);
   const bright = computeBrightness(imgArray, srcW, srcH);
   const grayResized = resizeGray(bright, srcW, srcH, cols * cw, rows * ch);
-
+ 
   const err = new Float32Array((rows * ch + ch) * (cols * cw + cw));
   const errW = cols * cw + cw;
   const P = cw * ch;
-
-  const G2 = new Float32Array(chars.length);
+ 
+  // Gamma encode/decode helpers for perceptual error diffusion
+  const GAMMA = 2.2;
+  const toPerceptual = (v) => Math.pow(Math.max(0, Math.min(1, v)), 1 / GAMMA);
+  const toLinear = (v) => Math.pow(Math.max(0, Math.min(1, v)), GAMMA);
+ 
+  // Precompute glyph stats in perceptual space
+  const glyphMeanP = new Float32Array(chars.length);
+  const glyphStdP = new Float32Array(chars.length);
+  const atlasP = [];
   for (let i = 0; i < chars.length; i++) {
+    const gp = new Float32Array(P);
     let sum = 0;
-    for (let p = 0; p < P; p++) sum += atlas[i][p] * atlas[i][p];
-    G2[i] = sum;
+    for (let p = 0; p < P; p++) {
+      gp[p] = toPerceptual(atlas[i][p]);
+      sum += gp[p];
+    }
+    atlasP.push(gp);
+    glyphMeanP[i] = sum / P;
+    let sq = 0;
+    for (let p = 0; p < P; p++) {
+      const d = gp[p] - glyphMeanP[i];
+      sq += d * d;
+    }
+    glyphStdP[i] = Math.sqrt(sq / P) + 1e-8;
   }
-
+ 
   const charGrid = [];
   for (let y = 0; y < rows; y++) {
     const row = [];
     for (let x = 0; x < cols; x++) {
-      let py = y * ch, px = x * cw;
+      const py = y * ch, px = x * cw;
       const patch = new Float32Array(P);
-      let X2 = 0;
-
+      let pSum = 0;
+ 
+      // Build patch in perceptual space with error accumulation
       for (let cy = 0; cy < ch; cy++) {
         for (let cx = 0; cx < cw; cx++) {
           let v = grayResized[(py + cy) * (cols * cw) + (px + cx)] / 255.0;
           if (invert) v = 1.0 - v;
-          v += err[(py + cy) * errW + (px + cx)];
-          if (v < 0) v = 0; if (v > 1) v = 1;
-          patch[cy * cw + cx] = v;
-          X2 += v * v;
+          // Add accumulated error in linear space, then convert to perceptual
+          const vLinear = Math.max(0, Math.min(1, v + err[(py + cy) * errW + (px + cx)]));
+          const vPerceptual = toPerceptual(vLinear);
+          patch[cy * cw + cx] = vPerceptual;
+          pSum += vPerceptual;
         }
       }
-
-      let bestSSD = Infinity, bestIdx = 0;
-      for (let i = 0; i < chars.length; i++) {
-        let XG = 0; const G = atlas[i];
-        for (let p = 0; p < P; p++) XG += patch[p] * G[p];
-        const ssd = X2 - 2 * XG + G2[i];
-        if (ssd < bestSSD) { bestSSD = ssd; bestIdx = i; }
+ 
+      const pMean = pSum / P;
+      let pSq = 0;
+      for (let p = 0; p < P; p++) {
+        const d = patch[p] - pMean;
+        pSq += d * d;
       }
-
+      const pStd = Math.sqrt(pSq / P);
+ 
+      // Low-contrast fallback
+      let bestIdx = 0;
+      if (pStd < 0.04) {
+        bestIdx = Math.max(0, Math.min(chars.length - 1, Math.round(pMean * (chars.length - 1))));
+      } else {
+        // NCC in perceptual space
+        let bestNCC = -Infinity;
+        for (let i = 0; i < chars.length; i++) {
+          let cross = 0;
+          const GP = atlasP[i];
+          const gm = glyphMeanP[i];
+          for (let p = 0; p < P; p++) {
+            cross += (patch[p] - pMean) * (GP[p] - gm);
+          }
+          const ncc = cross / (P * pStd * glyphStdP[i]);
+          if (ncc > bestNCC) { bestNCC = ncc; bestIdx = i; }
+        }
+      }
+ 
       row.push(chars[bestIdx]);
-
-      const bestG = atlas[bestIdx];
+ 
+      // Propagate error in linear space (Floyd-Steinberg weights)
+      const bestGP = atlasP[bestIdx];
       for (let cy = 0; cy < ch; cy++) {
         for (let cx = 0; cx < cw; cx++) {
-          const res = patch[cy * cw + cx] - bestG[cy * cw + cx];
-          if (x + 1 < cols && cx === cw - 1) err[(py + cy) * errW + (px + cw)] += res * 7 / 16;
+          // Convert both back to linear for error computation
+          const pLinear = toLinear(patch[cy * cw + cx]);
+          const gLinear = toLinear(bestGP[cy * cw + cx]);
+          const res = pLinear - gLinear;
+ 
+          if (x + 1 < cols && cx === cw - 1)
+            err[(py + cy) * errW + (px + cw)] += res * 7 / 16;
           if (y + 1 < rows && cy === ch - 1) {
-            if (x > 0 && cx === 0) err[(py + ch) * errW + (px - 1)] += res * 3 / 16;
+            if (x > 0 && cx === 0)
+              err[(py + ch) * errW + (px - 1)] += res * 3 / 16;
             err[(py + ch) * errW + (px + cx)] += res * 5 / 16;
-            if (x + 1 < cols && cx === cw - 1) err[(py + ch) * errW + (px + cw)] += res * 1 / 16;
+            if (x + 1 < cols && cx === cw - 1)
+              err[(py + ch) * errW + (px + cw)] += res * 1 / 16;
           }
         }
       }
@@ -902,7 +1074,7 @@ export function runPipeline(img, params) {
   const isGlyphMode = glyphMatch || glyphErrDiff;
 
   const rawBright = new Float32Array(bright);
-  if (equalize) bright = equalizeHistogram(bright);
+  if (equalize) bright = equalizeHistogram(bright, gridCols, rows);
   bright = applyExposure(bright, exposure || 1.0);
   bright = applyGamma(bright, gamma);
   bright = applyContrast(bright, contrast);
