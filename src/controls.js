@@ -173,7 +173,6 @@ export function initControls(onChange) {
     });
   });
 
-  // Open IMAGE and TONE sections by default
   document.getElementById('sec-image').classList.add('open');
   document.getElementById('sec-tone').classList.add('open');
 
@@ -210,7 +209,6 @@ export function initControls(onChange) {
       if (!preset) return;
       Object.assign(state, preset);
 
-      // Sync Sliders
       ['contrast', 'gamma', 'exposure', 'edgeWeight', 'sharpen', 'cols', 'charAspect', 'fontSize', 'attenuation', 'vignette', 'grain', 'mlSaliencyBoost'].forEach(k => {
         if (preset[k] === undefined) return;
         const domId = k === 'edgeWeight' ? 'edge_weight' : k === 'mlSaliencyBoost' ? 'ml_saliency_boost' : k === 'charAspect' ? 'char_aspect' : k === 'fontSize' ? 'font_size' : k;
@@ -222,7 +220,6 @@ export function initControls(onChange) {
         }
       });
 
-      // Sync Checkboxes
       ['equalize', 'dither', 'invert', 'showMask', 'multiscale', 'mlSaliency'].forEach(k => {
         if (preset[k] === undefined) return;
         const domId = k.replace(/([A-Z])/g, "_$1").toLowerCase();
@@ -230,7 +227,6 @@ export function initControls(onChange) {
         if (el) el.checked = preset[k];
       });
 
-      // Sync Charset
       if (preset.charset) {
         document.getElementById('charset').value = preset.charset;
         document.getElementById('custom-charset-row').style.display = preset.charset === 'custom' ? '' : 'none';

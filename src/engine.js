@@ -126,22 +126,19 @@ export function resizeColour(rgba, srcW, srcH, cols, charAspect = 0.45) {
   return { data: dctx.getImageData(0, 0, cols, rows), rows, cols };
 }
 
-// 5. IMPROVED: equalizeHistogram
-// Changes:
-//   - 1% clip at both ends prevents extreme pixels from
-//     collapsing the tonal range (fixes numbers charset).
-//   - CLAHE-style local contrast: divides image into tiles
-//     and blends local + global equalization. Preserves
-//     mid-tone detail that global equalization crushes.
-//     The blend factor is 0.6 local / 0.4 global.
+
+
+
+
+
+
+
+
 export function equalizeHistogram(b, w, h) {
-  // w and h are optional — if not provided, fall back to global-only
-  // (keeps backward compat with callers that only pass b)
   const useLocal = w !== undefined && h !== undefined && w > 0 && h > 0;
   const n = b.length;
   const out = new Float32Array(n);
 
-  // --- Global equalization with 1% clip ---
   const hist = new Int32Array(256);
   for (let i = 0; i < n; i++) hist[Math.min(255, Math.max(0, b[i] | 0))]++;
   const cdf = new Int32Array(256);
@@ -164,14 +161,11 @@ export function equalizeHistogram(b, w, h) {
     return out;
   }
 
-  // --- Local equalization (CLAHE-style) ---
-  // Tile size: aim for ~8 tiles across, minimum 4×4 pixels
   const tileW = Math.max(4, Math.round(w / 8));
   const tileH = Math.max(4, Math.round(h / 8));
   const tilesX = Math.ceil(w / tileW);
   const tilesY = Math.ceil(h / tileH);
 
-  // Build a LUT for each tile
   const tileLuts = [];
   for (let ty = 0; ty < tilesY; ty++) {
     for (let tx = 0; tx < tilesX; tx++) {
@@ -199,13 +193,11 @@ export function equalizeHistogram(b, w, h) {
     }
   }
 
-  // Bilinear interpolation between tile LUTs
-  const BLEND = 0.6; // local weight
+  const BLEND = 0.6; 
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const v = Math.min(255, Math.max(0, b[y * w + x] | 0));
 
-      // Tile coords (centre-based)
       const tx = Math.max(0, Math.min(tilesX - 1, Math.floor((x - tileW / 2) / tileW)));
       const ty = Math.max(0, Math.min(tilesY - 1, Math.floor((y - tileH / 2) / tileH)));
       const tx2 = Math.min(tilesX - 1, tx + 1);
@@ -357,76 +349,76 @@ export function sharpenImage(rgba, w, h, strength) {
   return result;
 }
 
-// ─── IMPROVED BINARY DENSITY PATTERNS ───────────────────────────────────────
-//
-// Key insight from the reference image:
-//   • Background (darkest) = pure spaces ' ' — completely black
-//   • Shadow areas = mostly 0s, occasional 1s
-//   • Midtones = balanced 0s and 1s
-//   • Highlights = mostly 1s with spaces around them (spread out = brighter)
-//   • Brightest = dense 1s packed together
-//
-// The reference achieves "brightness" two ways simultaneously:
-//   1. Ratio of 1s to 0s in the pattern
-//   2. Spacing/gaps between characters (handled via fontSize + letterSpacing)
-//
-// Patterns go from dark (index 0) to bright (index N).
-// Longer patterns = more variety = less visible tiling.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 const _BINARY_DENSITY = [
-  '     ',      // 0%   — pure black background
-  '    0',      // 8%   — almost invisible
-  '   00',      // 12%
-  '  000',      // 16%
-  ' 0000',      // 20%
-  '00000',      // 22%  — dense zeros, very dark
-  '00001',      // 25%
-  '00010',      // 28%
-  '00100',      // 30%
-  '00011',      // 33%
-  '00101',      // 36%
-  '001001',     // 38%
-  '00110',      // 40%
-  '01001',      // 42%
-  '010010',     // 44%
-  '01010',      // 46%
-  '010101',     // 48%
-  '01011',      // 50%  — even mix
-  '101010',     // 52%
-  '01101',      // 54%
-  '10110',      // 57%
-  '011011',     // 59%
-  '01110',      // 62%
-  '10111',      // 66%
-  '011101',     // 68%
-  '11011',      // 72%
-  '110110',     // 74%
-  '11101',      // 78%
-  '111011',     // 82%
-  '11110',      // 86%
-  '111101',     // 88%
-  '11111',      // 92%  — dense ones, bright
-  '111110',     // 94%
-  '1111110',    // 96%
-  '11111110',   // 97%
-  '111111111',  // 99%
-  '1111111111', // 100% — maximum brightness
+  '     ',      
+  '    0',      
+  '   00',      
+  '  000',      
+  ' 0000',      
+  '00000',      
+  '00001',      
+  '00010',      
+  '00100',      
+  '00011',      
+  '00101',      
+  '001001',     
+  '00110',      
+  '01001',      
+  '010010',     
+  '01010',      
+  '010101',     
+  '01011',      
+  '101010',     
+  '01101',      
+  '10110',      
+  '011011',     
+  '01110',      
+  '10111',      
+  '011101',     
+  '11011',      
+  '110110',     
+  '11101',      
+  '111011',     
+  '11110',      
+  '111101',     
+  '11111',      
+  '111110',     
+  '1111110',    
+  '11111110',   
+  '111111111',  
+  '1111111111', 
 ];
 
-// Per-cell deterministic rotation (unchanged — prevents stripe artifacts)
+
 function cellOffset(x, y) {
   return ((x * 6 + y * 11) >>> 0) % 7;
 }
 
-// ─── IMPROVED brightnessToChars ──────────────────────────────────────────────
-//
-// Changes vs original:
-//   1. Binary path uses the new extended _BINARY_DENSITY with space-leading
-//      dark patterns — so background maps to pure black naturally.
-//   2. Tone curve is a gentle power curve (gamma ~1.1) instead of S-curve —
-//      preserves midtone separation which is where face detail lives.
-//   3. Numbers charset uses same gentle curve.
-//   4. Non-binary path unchanged.
+
+
+
+
+
+
+
+
+
 
 export function brightnessToChars(brightness, w, h, chars, invert = false) {
   const n = chars.length - 1;
@@ -434,7 +426,6 @@ export function brightnessToChars(brightness, w, h, chars, invert = false) {
   const isBinary = stripped === '01' || stripped === '10';
   const isNumbers = /^[0-9]+$/.test(stripped);
 
-  // Gentle power curve — keeps midtones open (face detail lives here)
   const gentleCurve = (t) => Math.pow(t, 0.92);
 
   const grid = [];
@@ -445,8 +436,6 @@ export function brightnessToChars(brightness, w, h, chars, invert = false) {
       if (invert) norm = 1 - norm;
 
       if (isBinary) {
-        // Map brightness → density pattern index
-        // Use a slight toe curve so near-black maps to pure space quickly
         const curved = norm < 0.05 ? 0 : Math.pow(norm, 0.85);
         const patIdx = Math.max(0, Math.min(
           _BINARY_DENSITY.length - 1,
@@ -474,37 +463,37 @@ export function brightnessToChars(brightness, w, h, chars, invert = false) {
   return grid;
 }
 
-// ─── RECOMMENDED RENDER SETTINGS for binary portrait mode ───────────────────
-//
-// Pass these into renderToCanvas / renderToHTML:
-//
-//   fontSize: 7          — small chars = more detail per pixel
-//   letterSpacing: 1px   — slight H gap makes 1s read as bright dots
-//   lineHeight: 1.1      — tight V gap, matches reference image
-//
-// In renderToCanvas, change the charW calculation:
-//   const charW = fontSize * 0.601 + 1.0;   // +1.0px H gap (was +0.3)
-//   const charH = fontSize * 1.10;           // tighter line height (was 1.15)
-//
-// And in the ctx.font call add letter-spacing via:
-//   if ('letterSpacing' in ctx) ctx.letterSpacing = '1px';
-//
-// ─── RECOMMENDED runPipeline DEFAULTS for binary portrait ───────────────────
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 export const PORTRAIT_BINARY_DEFAULTS = {
-  cols: 160,          // more columns = more detail
+  cols: 160,          
   charset: 'binary',
-  charAspect: 0.46,   // corrected aspect (was 0.54 — was squishing faces)
-  contrast: 1.05,     // subtle — let equalization do the heavy lifting
-  gamma: 1.0,         // neutral
+  charAspect: 0.46,   
+  contrast: 1.05,     
+  gamma: 1.0,         
   exposure: 1.0,
-  edgeWeight: 0,      // OFF — ruins smooth skin/shadow gradients
-  sharpen: 0.1,       // very slight
+  edgeWeight: 0,      
+  sharpen: 0.1,       
   vignette: 0,
   grain: 0,
   equalize: true,
-  dither: false,      // OFF for binary — pattern halftoning handles it
+  dither: false,      
   invert: false,
-  fontSize: 7,        // small = dense = detailed
+  fontSize: 7,        
 };
 
 
@@ -514,15 +503,15 @@ export function hexToRgb(hex) {
   return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
 }
 
-// ── ML Saliency: TensorFlow.js MobileNet-based neural saliency ──────────────
-// Uses MobileNet intermediate feature maps to compute a genuine attention map.
-// Activations from the last conv layer are averaged across channels (GAP),
-// then upsampled back to grid resolution. This gives a real content-aware
-// importance map — not a centre-gaussian approximation.
+
+
+
+
+
 
 let _tfReady = false;
 let _mlSaliencyModel = null;
-let _mlSaliencyStatus = 'idle'; // 'idle' | 'loading' | 'ready' | 'failed'
+let _mlSaliencyStatus = 'idle'; 
 
 export function getMLSaliencyStatus() { return _mlSaliencyStatus; }
 
@@ -545,18 +534,11 @@ async function _loadMLSaliencyModel() {
   }
 }
 
-// Preload model in background when module is imported
+
 _loadMLSaliencyModel();
 
-/**
- * computeMLSaliency
- * Extracts intermediate activations from MobileNet to produce a saliency map.
- * Falls back to a Sobel-based importance map if the model isn't ready yet.
- *
- * Returns Float32Array of size (cols * rows), values in [0, 1].
- */
+
 export async function computeMLSaliency(rgba, srcW, srcH, cols, rows) {
-  // Try ML path first
   if (_mlSaliencyStatus === 'ready' && _mlSaliencyModel) {
     try {
       return await _computeNeuralSaliency(rgba, srcW, srcH, cols, rows);
@@ -564,14 +546,12 @@ export async function computeMLSaliency(rgba, srcW, srcH, cols, rows) {
       console.warn('Neural saliency inference failed, falling back:', e);
     }
   }
-  // Fallback: gradient energy map (Sobel magnitude) — still much better than centre-gaussian
   return _computeGradientSaliency(rgba, srcW, srcH, cols, rows);
 }
 
 async function _computeNeuralSaliency(rgba, srcW, srcH, cols, rows) {
   const tf = await import('https://esm.sh/@tensorflow/tfjs@4.20.0');
 
-  // Resize source to 224x224 for MobileNet input
   const INPUT_SIZE = 224;
   const srcCanvas = new OffscreenCanvas(srcW, srcH);
   const srcCtx = srcCanvas.getContext('2d');
@@ -582,7 +562,6 @@ async function _computeNeuralSaliency(rgba, srcW, srcH, cols, rows) {
   inputCtx.drawImage(srcCanvas, 0, 0, INPUT_SIZE, INPUT_SIZE);
   const inputData = inputCtx.getImageData(0, 0, INPUT_SIZE, INPUT_SIZE);
 
-  // Build input tensor [1, 224, 224, 3], normalized to [-1, 1]
   const inputTensor = tf.tidy(() => {
     const pixels = new Float32Array(INPUT_SIZE * INPUT_SIZE * 3);
     for (let i = 0; i < INPUT_SIZE * INPUT_SIZE; i++) {
@@ -593,16 +572,12 @@ async function _computeNeuralSaliency(rgba, srcW, srcH, cols, rows) {
     return tf.tensor4d(pixels, [1, INPUT_SIZE, INPUT_SIZE, 3]);
   });
 
-  // Extract intermediate feature map from MobileNet's internal model
-  // We grab the layer before global average pooling — gives spatial activation maps
   let salMap;
   try {
     const internalModel = _mlSaliencyModel.model;
-    // Find the last conv layer with spatial dims (before flatten/GAP)
     let targetLayer = null;
     for (const layer of internalModel.layers) {
       const outShape = layer.outputShape;
-      // Look for a conv layer with shape [null, H, W, C] where H,W > 1
       if (Array.isArray(outShape) && outShape.length === 4 &&
         outShape[1] > 1 && outShape[2] > 1 && outShape[3] >= 32) {
         targetLayer = layer;
@@ -614,17 +589,14 @@ async function _computeNeuralSaliency(rgba, srcW, srcH, cols, rows) {
         inputs: internalModel.inputs,
         outputs: targetLayer.output,
       });
-      const features = featureModel.predict(inputTensor); // [1, H, W, C]
-      // Global Average across channels → [1, H, W]
-      const averaged = tf.mean(features, 3); // mean over channels
-      const squeezed = averaged.squeeze([0]); // [H, W]
-      // ReLU to keep only positive activations
+      const features = featureModel.predict(inputTensor); 
+      const averaged = tf.mean(features, 3); 
+      const squeezed = averaged.squeeze([0]); 
       const relu = tf.relu(squeezed);
-      // Normalize to [0, 1]
       const minV = relu.min();
       const maxV = relu.max();
       const normalised = relu.sub(minV).div(maxV.sub(minV).add(1e-8));
-      salMap = await normalised.array(); // 2D array [H][W]
+      salMap = await normalised.array(); 
       tf.dispose([features, averaged, squeezed, relu, normalised, minV, maxV, featureModel]);
     }
   } catch (e) {
@@ -634,7 +606,6 @@ async function _computeNeuralSaliency(rgba, srcW, srcH, cols, rows) {
 
   if (!salMap) return _computeGradientSaliency(rgba, srcW, srcH, cols, rows);
 
-  // Bilinear upsample salMap from [fH, fW] to [rows, cols]
   const fH = salMap.length;
   const fW = salMap[0].length;
   const out = new Float32Array(cols * rows);
@@ -656,7 +627,6 @@ async function _computeNeuralSaliency(rgba, srcW, srcH, cols, rows) {
 }
 
 function _computeGradientSaliency(rgba, srcW, srcH, cols, rows) {
-  // Fallback: Sobel gradient energy, resized to grid
   const bright = computeBrightness(rgba, srcW, srcH);
   const small = resizeGray(bright, srcW, srcH, cols, rows);
   const { gx, gy } = sobel(small, cols, rows);
@@ -671,23 +641,16 @@ function _computeGradientSaliency(rgba, srcW, srcH, cols, rows) {
   return out;
 }
 
-/**
- * applyMLSaliencyToChars
- * Uses the saliency map to locally increase character density (darker chars)
- * in high-importance regions and reduce density in low-importance regions.
- * This modulates char selection, not just brightness — so it affects rendering quality,
- * not just tone.
- */
+
 export function applyMLSaliencyToChars(charGrid, salMap, cols, rows, chars, boost = 0.6) {
   const n = chars.length - 1;
   const newGrid = charGrid.map(r => [...r]);
   for (let y = 0; y < rows; y++) {
     for (let x = 0; x < cols; x++) {
-      const sal = salMap[y * cols + x]; // [0, 1]
+      const sal = salMap[y * cols + x]; 
       const currentChar = charGrid[y][x];
       const currentIdx = chars.indexOf(currentChar);
       if (currentIdx < 0) continue;
-      // Shift char index: high saliency → denser char; low → sparser
       const shift = Math.round((sal - 0.5) * 2 * boost * (n * 0.15));
       const newIdx = Math.max(0, Math.min(n, currentIdx + shift));
       newGrid[y][x] = chars[newIdx];
@@ -704,7 +667,6 @@ export function renderToCanvas(charGrid, brightness, colourData, opts) {
   const strippedChars = (charset === 'custom' && opts.customCharset) ? opts.customCharset.replace(/\s/g, '') : (charset || '').replace(/\s/g, '');
   const isBinary = strippedChars === '01' || strippedChars === '10' || charset === 'binary';
 
-  // Binary mode uses 1.0px H gap and 1.10 line-height as recommended for portrait mode
   const hGap = isBinary ? 1.0 : 0.3;
   const lHeight = isBinary ? 1.10 : 1.15;
 
@@ -943,7 +905,6 @@ export async function runPipeline(img, params) {
     : (RAW_CHARSETS[charset] || RAW_CHARSETS.full);
   const chars = measureCharDensity(rawChars);
 
-  // Binary uses its own density-pattern halftoning — Floyd-Steinberg corrupts it
   const strippedChars = chars.replace(/\s/g, '');
   const isBinaryCharset = strippedChars === '01' || strippedChars === '10';
 

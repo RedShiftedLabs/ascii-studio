@@ -9,7 +9,7 @@ import {
   triggerDownload, triggerDownloadText,
 } from './renderer.js';
 
-// Poll model status and update the badge in the Advanced section
+
 function _updateMLBadge() {
   const badge = document.getElementById('ml-saliency-badge');
   if (!badge) return;
@@ -97,7 +97,6 @@ document.getElementById('btn-remove-bg').addEventListener('click', async () => {
     btn.innerHTML = isFirstLoad ? 'Downloading AI model (~40MB)... 0%' : 'Removing background...';
     btn.disabled = true;
 
-    // Dynamic import with correct +esm format — failure is isolated, won't break UI
     let removeBackground;
     try {
       const mod = await import('https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/+esm');
@@ -157,7 +156,6 @@ async function onFile(file) {
 
 function scheduleRender() {
   if (!currentFile) return;
-  // Don't queue a new render while one is already running.
   if (isRendering) return;
   clearTimeout(renderDebounce);
   renderDebounce = setTimeout(doRender, 300);
@@ -165,7 +163,7 @@ function scheduleRender() {
 
 async function doRender() {
   if (!currentFile) { setStatus('Drop an image to start', ''); return; }
-  if (isRendering) return; // Prevent stacked renders
+  if (isRendering) return; 
   isRendering = true;
   setBusy(true);
   setStatus('Rendering…', 'busy');
@@ -179,7 +177,7 @@ async function doRender() {
     dropzone.style.display = 'none';
     resultWrap.style.display = 'block';
     document.getElementById('zoom-controls').style.display = 'flex';
-    exportBtns.forEach(b => b.style.display = ''); // only show on success
+    exportBtns.forEach(b => b.style.display = ''); 
     setStatus(`Done · ${params.cols} cols · ${params.theme}`, 'ok');
     updateZoom();
   } catch (e) {
@@ -190,7 +188,7 @@ async function doRender() {
   setBusy(false);
 }
 
-// ── Zoom Logic ───────────────────────────────────────────────
+
 let currentZoom = null;
 let isFitToScreen = true;
 const zoomLevelTxt = document.getElementById('zoom-level');
@@ -198,7 +196,7 @@ const zoomLevelTxt = document.getElementById('zoom-level');
 function updateZoom() {
   const el = resultInner.querySelector('canvas') || resultInner.querySelector('pre');
   if (!el) return;
-  resultInner.style.zoom = 1; // reset to measure
+  resultInner.style.zoom = 1; 
   if (isFitToScreen) {
     const wrap = document.getElementById('preview-wrap');
     const availableW = wrap.clientWidth - 48;
@@ -283,7 +281,7 @@ function setBusy(on) {
   progressBar.style.display = on ? 'block' : 'none';
 
   if (on) {
-    clearInterval(btnRender._iv); // Clear any leaked interval from a previous call
+    clearInterval(btnRender._iv); 
     let w = 0;
     const iv = setInterval(() => {
       w = Math.min(w + Math.random() * 5, 88);
