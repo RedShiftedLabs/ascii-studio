@@ -29,6 +29,8 @@ export const DEFAULT_PARAMS = {
   saliencyBoost: 0.60,
   fusionV6: false,
   freqAware: false,
+  freqAwareCohThresh: 0.45,
+  freqAwareEngThresh: 0.10,
   glyphMatch: false,
   glyphErrDiff: false,
 };
@@ -166,15 +168,17 @@ export function initControls(onChange) {
   // Advanced render modes are mutually exclusive — only one can be active at a time.
   const _advancedModes = [
     { id: 'fusion_v6',    key: 'fusionV6' },
-    { id: 'freq_aware',   key: 'freqAware' },
+    { id: 'freq_aware',   key: 'freqAware', subCtrlId: 'freq-aware-sub' },
     { id: 'glyph_match',  key: 'glyphMatch' },
     { id: 'glyph_err_diff', key: 'glyphErrDiff' },
   ];
 
-  _advancedModes.forEach(({ id, key }) => {
+  _advancedModes.forEach(({ id, key, subCtrlId }) => {
     const el = document.getElementById(id);
     if (!el) return;
     el.checked = state[key];
+    const sub = subCtrlId ? document.getElementById(subCtrlId) : null;
+    if (sub) sub.style.display = state[key] ? '' : 'none';
     el.addEventListener('change', () => {
       if (el.checked) {
         // Uncheck all other exclusive modes
@@ -183,13 +187,22 @@ export function initControls(onChange) {
             state[m.key] = false;
             const other = document.getElementById(m.id);
             if (other) other.checked = false;
+            if (m.subCtrlId) {
+              const subEl = document.getElementById(m.subCtrlId);
+              if (subEl) subEl.style.display = 'none';
+            }
           }
         });
       }
       state[key] = el.checked;
+      if (sub) sub.style.display = el.checked ? '' : 'none';
       onChange(state);
     });
   });
+
+  // Frequency-aware thresholds
+  bindSlider('freq_aware_coh_thresh', 'freqAwareCohThresh');
+  bindSlider('freq_aware_eng_thresh', 'freqAwareEngThresh');
 
   bindSlider('font_size', 'fontSize', v => v);
   const fontSelect = document.getElementById('output_font');
@@ -290,6 +303,10 @@ export function initControls(onChange) {
     document.getElementById('val-multiscale_boost').textContent = DEFAULT_PARAMS.multiscaleBoost.toFixed(2);
     document.getElementById('saliency_boost').value = DEFAULT_PARAMS.saliencyBoost;
     document.getElementById('val-saliency_boost').textContent = DEFAULT_PARAMS.saliencyBoost.toFixed(2);
+    document.getElementById('freq_aware_coh_thresh').value = DEFAULT_PARAMS.freqAwareCohThresh;
+    document.getElementById('val-freq_aware_coh_thresh').textContent = DEFAULT_PARAMS.freqAwareCohThresh.toFixed(2);
+    document.getElementById('freq_aware_eng_thresh').value = DEFAULT_PARAMS.freqAwareEngThresh;
+    document.getElementById('val-freq_aware_eng_thresh').textContent = DEFAULT_PARAMS.freqAwareEngThresh.toFixed(2);
     document.getElementById('font_size').value = DEFAULT_PARAMS.fontSize;
     document.getElementById('val-font_size').textContent = DEFAULT_PARAMS.fontSize;
     ['equalize','dither','invert','show_mask','multiscale','saliency_aware',
@@ -305,6 +322,7 @@ export function initControls(onChange) {
     document.getElementById('fg_hex').value = defTheme.fg;
     document.getElementById('multiscale-sub').style.display = 'none';
     document.getElementById('saliency-sub').style.display = 'none';
+    document.getElementById('freq-aware-sub').style.display = 'none';
     updateThemeSwatch(defTheme);
     flashColorPickers();
     updateGammaWarn();

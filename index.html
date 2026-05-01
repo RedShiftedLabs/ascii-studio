@@ -252,6 +252,18 @@
             <input type="checkbox" id="freq_aware"/>
             <label for="freq_aware">Frequency-Aware Mapping</label>
           </div>
+          <div class="sub-ctrl" id="freq-aware-sub">
+            <div class="ctrl">
+              <div class="ctrl-label">Coherence threshold <span class="ctrl-val" id="val-freq_aware_coh_thresh">0.45</span></div>
+              <input type="range" id="freq_aware_coh_thresh" min="0" max="1" step="0.05" value="0.45"
+                title="Lower = more directional chars. Higher = more texture chars."/>
+            </div>
+            <div class="ctrl">
+              <div class="ctrl-label">Energy threshold <span class="ctrl-val" id="val-freq_aware_eng_thresh">0.10</span></div>
+              <input type="range" id="freq_aware_eng_thresh" min="0" max="0.5" step="0.02" value="0.10"
+                title="Lower = more flat chars in low-detail areas. Higher = more directional chars everywhere."/>
+            </div>
+          </div>
           <div class="toggle-row">
             <input type="checkbox" id="glyph_match"/>
             <label for="glyph_match">S-Tier Glyph Matching</label>

@@ -282,8 +282,8 @@ export function brightnessToChars(brightness, w, h, chars, invert = false) {
         if (norm < 0.12) {
           row.push(' ');
         } else {
-          const r = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
-          row.push((r - Math.floor(r)) > 0.5 ? '1' : '0');
+          const h = (x * 1664525 + y * 1013904223) & 0xFFFFFFFF;
+          row.push((h >>> 0) % 2 === 0 ? '0' : '1');
         }
       } else {
         const idx = Math.max(0, Math.min(n, Math.round(norm * n)));
@@ -859,7 +859,7 @@ export function runPipeline(img, params) {
     colourMode, attenuation, fgHex, bgHex, fontSize, outputFont,
     multiscale, multiscaleBoost,
     saliencyAware, saliencyBoost,
-    fusionV6, freqAware, glyphMatch, glyphErrDiff,
+    fusionV6, freqAware, freqAwareCohThresh, freqAwareEngThresh, glyphMatch, glyphErrDiff,
   } = params;
 
   const { data: rgba, w: srcW, h: srcH } = img;
@@ -920,7 +920,7 @@ export function runPipeline(img, params) {
       charGrid.push(row);
     }
   } else if (freqAware) {
-    charGrid = frequencyAwareChars(sharpened, srcW, srcH, chars, gridCols, rows, charAspect, invert);
+    charGrid = frequencyAwareChars(sharpened, srcW, srcH, chars, gridCols, rows, charAspect, invert, freqAwareCohThresh, freqAwareEngThresh);
   } else if (glyphMatch) {
     charGrid = glyphMatchChars(sharpened, srcW, srcH, chars, gridCols, charAspect, fontSize, invert);
   } else if (glyphErrDiff) {
