@@ -5,7 +5,8 @@ import {
   renderToHTML,
   renderToPDF,
   renderToPNG,
-  renderToSVG, renderToTxt,
+  renderToSVG,
+  renderToTxt,
   runPipeline,
   THEMES,
 } from './engine.js';
@@ -26,7 +27,6 @@ export async function loadFile(file) {
 export async function render(params) {
   if (!currentImg) throw new Error('No image loaded');
   const theme = THEMES[params.theme] || THEMES.noir;
-
   const enriched = {
     cols: params.cols,
     charset: params.charset,
@@ -55,6 +55,8 @@ export async function render(params) {
     saliencyBoost: params.saliencyBoost,
     fusionV6: params.fusionV6,
     freqAware: params.freqAware,
+    freqAwareCohThresh: params.freqAwareCohThresh,
+    freqAwareEngThresh: params.freqAwareEngThresh,
     glyphMatch: params.glyphMatch,
     glyphErrDiff: params.glyphErrDiff,
     customCharset: params.customCharset || '',
@@ -104,7 +106,9 @@ export async function exportPDF() {
 export function triggerDownload(blob, filename) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = filename; a.click();
+  a.href = url;
+  a.download = filename;
+  a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 

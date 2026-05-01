@@ -29,8 +29,8 @@ export const DEFAULT_PARAMS = {
   saliencyBoost: 0.60,
   fusionV6: false,
   freqAware: false,
-  freqAwareCohThresh: 0.45,
-  freqAwareEngThresh: 0.10,
+  freqAwareCohThresh: 0.25,
+  freqAwareEngThresh: 0.02,
   glyphMatch: false,
   glyphErrDiff: false,
 };
@@ -80,6 +80,7 @@ export function initControls(onChange) {
   }
 
   bindSlider('cols', 'cols', v => v);
+
   // Charset select – with Custom mode support
   const charsetEl = document.getElementById('charset');
   const customRow = document.getElementById('custom-charset-row');
@@ -97,14 +98,14 @@ export function initControls(onChange) {
   let customDebounce = null;
   customInput.addEventListener('input', () => {
     const val = customInput.value.trim();
-    if (!val || val.length < 2) return; // need at least 2 chars for a gradient
+    if (!val || val.length < 2) return;
     state.customCharset = val;
     clearTimeout(customDebounce);
     customDebounce = setTimeout(() => onChange(state), 500);
   });
+
   bindSlider('char_aspect', 'charAspect');
   bindSlider('sharpen', 'sharpen');
-
   bindSlider('contrast', 'contrast');
   bindSlider('gamma', 'gamma');
   bindSlider('exposure', 'exposure');
@@ -131,7 +132,6 @@ export function initControls(onChange) {
       const el = document.getElementById(id);
       if (!el) return;
       el.classList.remove('color-flash');
-      // Force reflow to restart animation
       void el.offsetWidth;
       el.classList.add('color-flash');
     });
@@ -165,11 +165,11 @@ export function initControls(onChange) {
   bindCheckbox('saliency_aware', 'saliencyAware', 'saliency-sub');
   bindSlider('saliency_boost', 'saliencyBoost');
 
-  // Advanced render modes are mutually exclusive — only one can be active at a time.
+  // Advanced render modes are mutually exclusive
   const _advancedModes = [
-    { id: 'fusion_v6',    key: 'fusionV6' },
-    { id: 'freq_aware',   key: 'freqAware', subCtrlId: 'freq-aware-sub' },
-    { id: 'glyph_match',  key: 'glyphMatch' },
+    { id: 'fusion_v6',      key: 'fusionV6' },
+    { id: 'freq_aware',     key: 'freqAware', subCtrlId: 'freq-aware-sub' },
+    { id: 'glyph_match',    key: 'glyphMatch' },
     { id: 'glyph_err_diff', key: 'glyphErrDiff' },
   ];
 
@@ -181,7 +181,6 @@ export function initControls(onChange) {
     if (sub) sub.style.display = state[key] ? '' : 'none';
     el.addEventListener('change', () => {
       if (el.checked) {
-        // Uncheck all other exclusive modes
         _advancedModes.forEach(m => {
           if (m.id !== id) {
             state[m.key] = false;
@@ -228,14 +227,13 @@ export function initControls(onChange) {
   document.getElementById('fg_hex').value = t.fg;
   updateThemeSwatch(t);
 
-  // ── Gamma + equalize warning ───────────────────────────
+  // ── Gamma + equalize warning ──────────────────────────────
   const gammaWarn = document.getElementById('gamma-warn');
   function updateGammaWarn() {
     if (!gammaWarn) return;
     const warn = state.equalize && state.gamma > 1.4;
     gammaWarn.style.display = warn ? 'inline' : 'none';
   }
-  // Patch gamma and equalize bindings to also trigger warning
   document.getElementById('gamma').addEventListener('input', () => {
     state.gamma = parseFloat(document.getElementById('gamma').value);
     updateGammaWarn();
@@ -243,13 +241,13 @@ export function initControls(onChange) {
   document.getElementById('equalize').addEventListener('change', updateGammaWarn);
   updateGammaWarn();
 
-  // ── Tone Presets (LUTs) ────────────────────────────────
+  // ── Tone Presets ──────────────────────────────────────────
   const TONE_PRESETS = {
-    default: { contrast: 1.20, gamma: 0.80, exposure: 1.0, edgeWeight: 0.25, sharpen: 0.30, equalize: true },
-    high_contrast: { contrast: 2.0, gamma: 0.70, exposure: 1.1, edgeWeight: 0.50, sharpen: 0.50, equalize: true },
-    muted: { contrast: 0.80, gamma: 1.20, exposure: 1.0, edgeWeight: 0.10, sharpen: 0.10, equalize: false },
-    dark: { contrast: 1.50, gamma: 0.50, exposure: 0.80, edgeWeight: 0.80, sharpen: 0.60, equalize: true },
-    bright: { contrast: 1.10, gamma: 1.50, exposure: 1.30, edgeWeight: 0.20, sharpen: 0.30, equalize: false }
+    default:       { contrast: 1.20, gamma: 0.80, exposure: 1.0,  edgeWeight: 0.25, sharpen: 0.30, equalize: true  },
+    high_contrast: { contrast: 2.0,  gamma: 0.70, exposure: 1.1,  edgeWeight: 0.50, sharpen: 0.50, equalize: true  },
+    muted:         { contrast: 0.80, gamma: 1.20, exposure: 1.0,  edgeWeight: 0.10, sharpen: 0.10, equalize: false },
+    dark:          { contrast: 1.50, gamma: 0.50, exposure: 0.80, edgeWeight: 0.80, sharpen: 0.60, equalize: true  },
+    bright:        { contrast: 1.10, gamma: 1.50, exposure: 1.30, edgeWeight: 0.20, sharpen: 0.30, equalize: false },
   };
 
   const presetDropdown = document.getElementById('tone_preset');
@@ -257,10 +255,7 @@ export function initControls(onChange) {
     presetDropdown.addEventListener('change', (e) => {
       const preset = TONE_PRESETS[e.target.value];
       if (!preset) return;
-      
       Object.assign(state, preset);
-      
-      // Update DOM
       ['contrast', 'gamma', 'exposure', 'edgeWeight', 'sharpen'].forEach(k => {
         const domId = k === 'edgeWeight' ? 'edge_weight' : k;
         document.getElementById(domId).value = preset[k];
@@ -268,15 +263,14 @@ export function initControls(onChange) {
       });
       document.getElementById('equalize').checked = preset.equalize;
       updateGammaWarn();
-      
       onChange(state);
     });
   }
 
-  // ── Reset to defaults ──────────────────────────────────
+  // ── Reset to defaults ─────────────────────────────────────
   document.getElementById('btn-reset').addEventListener('click', () => {
     Object.assign(state, DEFAULT_PARAMS);
-    // Re-sync all DOM elements
+
     document.getElementById('cols').value = DEFAULT_PARAMS.cols;
     document.getElementById('val-cols').textContent = DEFAULT_PARAMS.cols;
     document.getElementById('char_aspect').value = DEFAULT_PARAMS.charAspect;
@@ -309,14 +303,17 @@ export function initControls(onChange) {
     document.getElementById('val-freq_aware_eng_thresh').textContent = DEFAULT_PARAMS.freqAwareEngThresh.toFixed(2);
     document.getElementById('font_size').value = DEFAULT_PARAMS.fontSize;
     document.getElementById('val-font_size').textContent = DEFAULT_PARAMS.fontSize;
+
     ['equalize','dither','invert','show_mask','multiscale','saliency_aware',
-      'fusion_v6','freq_aware','glyph_match','glyph_err_diff'].forEach(id => {
+     'fusion_v6','freq_aware','glyph_match','glyph_err_diff'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.checked = !!DEFAULT_PARAMS[id.replace(/_([a-z])/g, (_, c) => c.toUpperCase())];
     });
+
     document.getElementById('charset').value = DEFAULT_PARAMS.charset;
     document.getElementById('theme').value = DEFAULT_PARAMS.theme;
     document.getElementById('tone_preset').value = 'default';
+
     const defTheme = THEMES[DEFAULT_PARAMS.theme];
     document.getElementById('bg_hex').value = defTheme.bg;
     document.getElementById('fg_hex').value = defTheme.fg;
@@ -336,4 +333,3 @@ function updateFontPreview(font) {
   const el = document.getElementById('font-preview');
   if (el) el.style.fontFamily = font;
 }
-
