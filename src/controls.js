@@ -1,4 +1,4 @@
-import { THEMES } from './engine.js';
+import { THEMES, PORTRAIT_BINARY_DEFAULTS } from './engine.js';
 
 export const DEFAULT_PARAMS = {
   cols: 120,
@@ -201,20 +201,41 @@ export function initControls(onChange) {
     muted: { contrast: 0.80, gamma: 1.20, exposure: 1.0, edgeWeight: 0.10, sharpen: 0.10, equalize: false },
     dark: { contrast: 1.50, gamma: 0.50, exposure: 0.80, edgeWeight: 0.80, sharpen: 0.60, equalize: true },
     bright: { contrast: 1.10, gamma: 1.50, exposure: 1.30, edgeWeight: 0.20, sharpen: 0.30, equalize: false },
+    portrait_binary: PORTRAIT_BINARY_DEFAULTS,
   };
 
-  const presetDropdown = document.getElementById('tone_preset');
   if (presetDropdown) {
     presetDropdown.addEventListener('change', (e) => {
       const preset = TONE_PRESETS[e.target.value];
       if (!preset) return;
       Object.assign(state, preset);
-      ['contrast', 'gamma', 'exposure', 'edgeWeight', 'sharpen'].forEach(k => {
-        const domId = k === 'edgeWeight' ? 'edge_weight' : k;
-        document.getElementById(domId).value = preset[k];
-        document.getElementById(`val-${domId}`).textContent = preset[k].toFixed(2);
+
+      // Sync Sliders
+      ['contrast', 'gamma', 'exposure', 'edgeWeight', 'sharpen', 'cols', 'charAspect', 'fontSize', 'attenuation', 'vignette', 'grain', 'mlSaliencyBoost'].forEach(k => {
+        if (preset[k] === undefined) return;
+        const domId = k === 'edgeWeight' ? 'edge_weight' : k === 'mlSaliencyBoost' ? 'ml_saliency_boost' : k === 'charAspect' ? 'char_aspect' : k === 'fontSize' ? 'font_size' : k;
+        const el = document.getElementById(domId);
+        if (el) {
+          el.value = preset[k];
+          const lbl = document.getElementById(`val-${domId}`);
+          if (lbl) lbl.textContent = k === 'fontSize' ? preset[k] : preset[k].toFixed(2);
+        }
       });
-      document.getElementById('equalize').checked = preset.equalize;
+
+      // Sync Checkboxes
+      ['equalize', 'dither', 'invert', 'showMask', 'multiscale', 'mlSaliency'].forEach(k => {
+        if (preset[k] === undefined) return;
+        const domId = k.replace(/([A-Z])/g, "_$1").toLowerCase();
+        const el = document.getElementById(domId);
+        if (el) el.checked = preset[k];
+      });
+
+      // Sync Charset
+      if (preset.charset) {
+        document.getElementById('charset').value = preset.charset;
+        document.getElementById('custom-charset-row').style.display = preset.charset === 'custom' ? '' : 'none';
+      }
+
       updateGammaWarn();
       onChange(state);
     });

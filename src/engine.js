@@ -357,31 +357,76 @@ export function sharpenImage(rgba, w, h, strength) {
   return result;
 }
 
-// Binary density patterns indexed dark→bright.
-// Each string is a short run of 0s/1s whose ratio encodes the brightness level.
-// Variable-length strings + per-cell rotation break up repeating stripes,
-// giving the organic clustered look of the reference image.
+// ─── IMPROVED BINARY DENSITY PATTERNS ───────────────────────────────────────
+//
+// Key insight from the reference image:
+//   • Background (darkest) = pure spaces ' ' — completely black
+//   • Shadow areas = mostly 0s, occasional 1s
+//   • Midtones = balanced 0s and 1s
+//   • Highlights = mostly 1s with spaces around them (spread out = brighter)
+//   • Brightest = dense 1s packed together
+//
+// The reference achieves "brightness" two ways simultaneously:
+//   1. Ratio of 1s to 0s in the pattern
+//   2. Spacing/gaps between characters (handled via fontSize + letterSpacing)
+//
+// Patterns go from dark (index 0) to bright (index N).
+// Longer patterns = more variety = less visible tiling.
+
 const _BINARY_DENSITY = [
-  '00000',   // ~0%  pure dark
-  '00001',   // ~10%
-  '00010',   // ~15%
-  '00100',   // ~20%
-  '00011',   // ~25%
-  '00101',   // ~30%
-  '00110',   // ~35%
-  '01001',   // ~40%
-  '01010',   // ~45%
-  '01011',   // ~50% even mix
-  '01101',   // ~55%
-  '01110',   // ~60%
-  '10011',   // ~65%
-  '10110',   // ~70%
-  '11010',   // ~73%
-  '11011',   // ~78%
-  '11101',   // ~83%
-  '11110',   // ~88%
-  '11111',   // ~100% pure bright
+  '     ',      // 0%   — pure black background
+  '    0',      // 8%   — almost invisible
+  '   00',      // 12%
+  '  000',      // 16%
+  ' 0000',      // 20%
+  '00000',      // 22%  — dense zeros, very dark
+  '00001',      // 25%
+  '00010',      // 28%
+  '00100',      // 30%
+  '00011',      // 33%
+  '00101',      // 36%
+  '001001',     // 38%
+  '00110',      // 40%
+  '01001',      // 42%
+  '010010',     // 44%
+  '01010',      // 46%
+  '010101',     // 48%
+  '01011',      // 50%  — even mix
+  '101010',     // 52%
+  '01101',      // 54%
+  '10110',      // 57%
+  '011011',     // 59%
+  '01110',      // 62%
+  '10111',      // 66%
+  '011101',     // 68%
+  '11011',      // 72%
+  '110110',     // 74%
+  '11101',      // 78%
+  '111011',     // 82%
+  '11110',      // 86%
+  '111101',     // 88%
+  '11111',      // 92%  — dense ones, bright
+  '111110',     // 94%
+  '1111110',    // 96%
+  '11111110',   // 97%
+  '111111111',  // 99%
+  '1111111111', // 100% — maximum brightness
 ];
+
+// Per-cell deterministic rotation (unchanged — prevents stripe artifacts)
+function cellOffset(x, y) {
+  return ((x * 6 + y * 11) >>> 0) % 7;
+}
+
+// ─── IMPROVED brightnessToChars ──────────────────────────────────────────────
+//
+// Changes vs original:
+//   1. Binary path uses the new extended _BINARY_DENSITY with space-leading
+//      dark patterns — so background maps to pure black naturally.
+//   2. Tone curve is a gentle power curve (gamma ~1.1) instead of S-curve —
+//      preserves midtone separation which is where face detail lives.
+//   3. Numbers charset uses same gentle curve.
+//   4. Non-binary path unchanged.
 
 export function brightnessToChars(brightness, w, h, chars, invert = false) {
   const n = chars.length - 1;
@@ -389,15 +434,8 @@ export function brightnessToChars(brightness, w, h, chars, invert = false) {
   const isBinary = stripped === '01' || stripped === '10';
   const isNumbers = /^[0-9]+$/.test(stripped);
 
-  // t in [0,1] → slightly boosted mid separation
-  const scurve = (t) => {
-    const s = t * t * (3 - 2 * t);
-    return s * 0.85 + t * 0.15;
-  };
-
-  // Deterministic per-cell rotation offset — breaks vertical stripe alignment
-  // without true randomness (same image always renders identically)
-  const cellOffset = (x, y) => ((x * 6 + y * 11) >>> 0) % 7;
+  // Gentle power curve — keeps midtones open (face detail lives here)
+  const gentleCurve = (t) => Math.pow(t, 0.92);
 
   const grid = [];
   for (let y = 0; y < h; y++) {
@@ -407,25 +445,26 @@ export function brightnessToChars(brightness, w, h, chars, invert = false) {
       if (invert) norm = 1 - norm;
 
       if (isBinary) {
-        // Map brightness [0,1] to a density pattern
+        // Map brightness → density pattern index
+        // Use a slight toe curve so near-black maps to pure space quickly
+        const curved = norm < 0.05 ? 0 : Math.pow(norm, 0.85);
         const patIdx = Math.max(0, Math.min(
           _BINARY_DENSITY.length - 1,
-          Math.round(norm * (_BINARY_DENSITY.length - 1))
+          Math.round(curved * (_BINARY_DENSITY.length - 1))
         ));
         const pat = _BINARY_DENSITY[patIdx];
-        // Rotate the pattern lookup position so adjacent cells don't repeat runs
         const pos = (x + cellOffset(x, y)) % pat.length;
         row.push(pat[pos]);
       } else if (isNumbers) {
-        if (norm < 0.08) {
+        if (norm < 0.06) {
           row.push(' ');
         } else {
-          const band = Math.min(9, Math.floor((norm - 0.08) / 0.092));
-          const charIdx = Math.round((band / 9) * n);
+          const curved = gentleCurve((norm - 0.06) / 0.94);
+          const charIdx = Math.round(curved * n);
           row.push(chars[Math.max(0, Math.min(n, charIdx))]);
         }
       } else {
-        const curved = scurve(norm);
+        const curved = gentleCurve(norm);
         const idx = Math.max(0, Math.min(n, Math.round(curved * n)));
         row.push(chars[idx]);
       }
@@ -434,6 +473,41 @@ export function brightnessToChars(brightness, w, h, chars, invert = false) {
   }
   return grid;
 }
+
+// ─── RECOMMENDED RENDER SETTINGS for binary portrait mode ───────────────────
+//
+// Pass these into renderToCanvas / renderToHTML:
+//
+//   fontSize: 7          — small chars = more detail per pixel
+//   letterSpacing: 1px   — slight H gap makes 1s read as bright dots
+//   lineHeight: 1.1      — tight V gap, matches reference image
+//
+// In renderToCanvas, change the charW calculation:
+//   const charW = fontSize * 0.601 + 1.0;   // +1.0px H gap (was +0.3)
+//   const charH = fontSize * 1.10;           // tighter line height (was 1.15)
+//
+// And in the ctx.font call add letter-spacing via:
+//   if ('letterSpacing' in ctx) ctx.letterSpacing = '1px';
+//
+// ─── RECOMMENDED runPipeline DEFAULTS for binary portrait ───────────────────
+export const PORTRAIT_BINARY_DEFAULTS = {
+  cols: 160,          // more columns = more detail
+  charset: 'binary',
+  charAspect: 0.46,   // corrected aspect (was 0.54 — was squishing faces)
+  contrast: 1.05,     // subtle — let equalization do the heavy lifting
+  gamma: 1.0,         // neutral
+  exposure: 1.0,
+  edgeWeight: 0,      // OFF — ruins smooth skin/shadow gradients
+  sharpen: 0.1,       // very slight
+  vignette: 0,
+  grain: 0,
+  equalize: true,
+  dither: false,      // OFF for binary — pattern halftoning handles it
+  invert: false,
+  fontSize: 7,        // small = dense = detailed
+};
+
+
 
 export function hexToRgb(hex) {
   const h = hex.replace('#', '');
@@ -457,11 +531,10 @@ async function _loadMLSaliencyModel() {
   if (_mlSaliencyStatus === 'loading') return null;
   _mlSaliencyStatus = 'loading';
   try {
-    const tf = await import('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js');
+    const tf = await import('https://esm.sh/@tensorflow/tfjs@4.20.0');
     await tf.ready();
     _tfReady = true;
-    // Load MobileNetV2 from TFHub via tfjs-models
-    const mobilenet = await import('https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.1/dist/mobilenet.min.js');
+    const mobilenet = await import('https://esm.sh/@tensorflow-models/mobilenet@2.1.1');
     _mlSaliencyModel = await mobilenet.load({ version: 2, alpha: 0.5 });
     _mlSaliencyStatus = 'ready';
     return _mlSaliencyModel;
@@ -496,7 +569,7 @@ export async function computeMLSaliency(rgba, srcW, srcH, cols, rows) {
 }
 
 async function _computeNeuralSaliency(rgba, srcW, srcH, cols, rows) {
-  const tf = (await import('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js'));
+  const tf = await import('https://esm.sh/@tensorflow/tfjs@4.20.0');
 
   // Resize source to 224x224 for MobileNet input
   const INPUT_SIZE = 224;
@@ -624,12 +697,19 @@ export function applyMLSaliencyToChars(charGrid, salMap, cols, rows, chars, boos
 }
 
 export function renderToCanvas(charGrid, brightness, colourData, opts) {
-  const { rows, cols, fgHex, bgHex, fontSize, attenuation, colourMode, outputFont } = opts;
+  const { rows, cols, fgHex, bgHex, fontSize, attenuation, colourMode, outputFont, charset } = opts;
   const [fr, fg, fb] = hexToRgb(fgHex);
   const [br, bg, bb] = hexToRgb(bgHex);
 
-  const charW = fontSize * 0.601 + 0.3;
-  const charH = fontSize * 1.15;
+  const strippedChars = (charset === 'custom' && opts.customCharset) ? opts.customCharset.replace(/\s/g, '') : (charset || '').replace(/\s/g, '');
+  const isBinary = strippedChars === '01' || strippedChars === '10' || charset === 'binary';
+
+  // Binary mode uses 1.0px H gap and 1.10 line-height as recommended for portrait mode
+  const hGap = isBinary ? 1.0 : 0.3;
+  const lHeight = isBinary ? 1.10 : 1.15;
+
+  const charW = fontSize * 0.601 + hGap;
+  const charH = fontSize * lHeight;
   const w = cols * charW;
   const h = rows * charH;
 
@@ -649,10 +729,13 @@ export function renderToCanvas(charGrid, brightness, colourData, opts) {
   ctx.font = `${fontSize}px ${outputFont}`;
   ctx.textBaseline = 'top';
 
+  if (isBinary && 'letterSpacing' in ctx) {
+    ctx.letterSpacing = '1px';
+  } else if ('letterSpacing' in ctx) {
+    ctx.letterSpacing = `${hGap}px`;
+  }
+
   if (!colourMode && attenuation === 0) {
-    if ('letterSpacing' in ctx) {
-      ctx.letterSpacing = '0.3px';
-    }
     ctx.fillStyle = fgHex;
     for (let y = 0; y < rows; y++) {
       const rowStr = charGrid[y].join('');
@@ -686,9 +769,13 @@ export function renderToCanvas(charGrid, brightness, colourData, opts) {
 }
 
 export function renderToHTML(charGrid, brightness, colourData, opts) {
-  const { rows, cols, fgHex, bgHex, fontSize, attenuation, colourMode, outputFont } = opts;
+  const { rows, cols, fgHex, bgHex, fontSize, attenuation, colourMode, outputFont, charset } = opts;
   const [fr, fg, fb] = hexToRgb(fgHex);
   const [br, bg, bb] = hexToRgb(bgHex);
+
+  const isBinary = charset === 'binary' || (charset === 'custom' && opts.customCharset && opts.customCharset.replace(/\s/g, '') === '01');
+  const hGap = isBinary ? '1px' : '0.3px';
+  const lHeight = isBinary ? '1.1' : '1.15';
 
   const lines = [];
   for (let y = 0; y < rows; y++) {
@@ -713,7 +800,7 @@ export function renderToHTML(charGrid, brightness, colourData, opts) {
   }
 
   return `<div style="background:${bgHex};padding:16px;border-radius:10px;overflow:auto;border:1px solid #222;">` +
-    `<pre style="font-family:${outputFont};font-size:${fontSize}px;line-height:1.15;margin:0;letter-spacing:0.3px;">${lines.join('\n')}</pre></div>`;
+    `<pre style="font-family:${outputFont};font-size:${fontSize}px;line-height:${lHeight};margin:0;letter-spacing:${hGap};">${lines.join('\n')}</pre></div>`;
 }
 
 export function renderToSVG(charGrid, brightness, colourData, opts) {
@@ -721,8 +808,13 @@ export function renderToSVG(charGrid, brightness, colourData, opts) {
   const [fr, fg, fb] = hexToRgb(fgHex);
   const [br, bg, bb] = hexToRgb(bgHex);
 
-  const cw = fontSize * 0.601 + 0.3;
-  const ch = fontSize * 1.15;
+  const strippedChars = (charset === 'custom' && opts.customCharset) ? opts.customCharset.replace(/\s/g, '') : (charset || '').replace(/\s/g, '');
+  const isBinary = strippedChars === '01' || strippedChars === '10' || charset === 'binary';
+  const hGap = isBinary ? 1.0 : 0.3;
+  const lHeight = isBinary ? 1.10 : 1.15;
+
+  const cw = fontSize * 0.601 + hGap;
+  const ch = fontSize * lHeight;
   const svgW = cols * cw;
   const svgH = rows * ch;
 
@@ -874,7 +966,6 @@ export async function runPipeline(img, params) {
     charGrid = brightnessToChars(processedBright, gridCols, rows, chars, invert);
   }
 
-  // ML Saliency: run after base char grid is built, modulate char density per-cell
   if (mlSaliency && !showMask) {
     const salMap = await computeMLSaliency(sharpened, srcW, srcH, gridCols, rows);
     charGrid = applyMLSaliencyToChars(charGrid, salMap, gridCols, rows, chars, mlSaliencyBoost);
