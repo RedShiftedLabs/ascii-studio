@@ -81,7 +81,6 @@ export function initControls(onChange) {
 
   bindSlider('cols', 'cols', v => v);
 
-  // Charset select – with Custom mode support
   const charsetEl = document.getElementById('charset');
   const customRow = document.getElementById('custom-charset-row');
   const customInput = document.getElementById('custom_charset');
@@ -165,11 +164,10 @@ export function initControls(onChange) {
   bindCheckbox('saliency_aware', 'saliencyAware', 'saliency-sub');
   bindSlider('saliency_boost', 'saliencyBoost');
 
-  // Advanced render modes are mutually exclusive
   const _advancedModes = [
-    { id: 'fusion_v6',      key: 'fusionV6' },
-    { id: 'freq_aware',     key: 'freqAware', subCtrlId: 'freq-aware-sub' },
-    { id: 'glyph_match',    key: 'glyphMatch' },
+    { id: 'fusion_v6', key: 'fusionV6' },
+    { id: 'freq_aware', key: 'freqAware', subCtrlId: 'freq-aware-sub' },
+    { id: 'glyph_match', key: 'glyphMatch' },
     { id: 'glyph_err_diff', key: 'glyphErrDiff' },
   ];
 
@@ -227,7 +225,6 @@ export function initControls(onChange) {
   document.getElementById('fg_hex').value = t.fg;
   updateThemeSwatch(t);
 
-  // ── Gamma + equalize warning ──────────────────────────────
   const gammaWarn = document.getElementById('gamma-warn');
   function updateGammaWarn() {
     if (!gammaWarn) return;
@@ -241,13 +238,12 @@ export function initControls(onChange) {
   document.getElementById('equalize').addEventListener('change', updateGammaWarn);
   updateGammaWarn();
 
-  // ── Tone Presets ──────────────────────────────────────────
   const TONE_PRESETS = {
-    default:       { contrast: 1.20, gamma: 0.80, exposure: 1.0,  edgeWeight: 0.25, sharpen: 0.30, equalize: true  },
-    high_contrast: { contrast: 2.0,  gamma: 0.70, exposure: 1.1,  edgeWeight: 0.50, sharpen: 0.50, equalize: true  },
-    muted:         { contrast: 0.80, gamma: 1.20, exposure: 1.0,  edgeWeight: 0.10, sharpen: 0.10, equalize: false },
-    dark:          { contrast: 1.50, gamma: 0.50, exposure: 0.80, edgeWeight: 0.80, sharpen: 0.60, equalize: true  },
-    bright:        { contrast: 1.10, gamma: 1.50, exposure: 1.30, edgeWeight: 0.20, sharpen: 0.30, equalize: false },
+    default: { contrast: 1.20, gamma: 0.80, exposure: 1.0, edgeWeight: 0.25, sharpen: 0.30, equalize: true },
+    high_contrast: { contrast: 2.0, gamma: 0.70, exposure: 1.1, edgeWeight: 0.50, sharpen: 0.50, equalize: true },
+    muted: { contrast: 0.80, gamma: 1.20, exposure: 1.0, edgeWeight: 0.10, sharpen: 0.10, equalize: false },
+    dark: { contrast: 1.50, gamma: 0.50, exposure: 0.80, edgeWeight: 0.80, sharpen: 0.60, equalize: true },
+    bright: { contrast: 1.10, gamma: 1.50, exposure: 1.30, edgeWeight: 0.20, sharpen: 0.30, equalize: false },
   };
 
   const presetDropdown = document.getElementById('tone_preset');
@@ -267,7 +263,6 @@ export function initControls(onChange) {
     });
   }
 
-  // ── Reset to defaults ─────────────────────────────────────
   document.getElementById('btn-reset').addEventListener('click', () => {
     Object.assign(state, DEFAULT_PARAMS);
 
@@ -304,11 +299,11 @@ export function initControls(onChange) {
     document.getElementById('font_size').value = DEFAULT_PARAMS.fontSize;
     document.getElementById('val-font_size').textContent = DEFAULT_PARAMS.fontSize;
 
-    ['equalize','dither','invert','show_mask','multiscale','saliency_aware',
-     'fusion_v6','freq_aware','glyph_match','glyph_err_diff'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.checked = !!DEFAULT_PARAMS[id.replace(/_([a-z])/g, (_, c) => c.toUpperCase())];
-    });
+    ['equalize', 'dither', 'invert', 'show_mask', 'multiscale', 'saliency_aware',
+      'fusion_v6', 'freq_aware', 'glyph_match', 'glyph_err_diff'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.checked = !!DEFAULT_PARAMS[id.replace(/_([a-z])/g, (_, c) => c.toUpperCase())];
+      });
 
     document.getElementById('charset').value = DEFAULT_PARAMS.charset;
     document.getElementById('theme').value = DEFAULT_PARAMS.theme;
