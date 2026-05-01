@@ -386,10 +386,10 @@ export function brightnessToChars(brightness, w, h, chars, invert = false) {
  
       if (isBinary) {
         const threshold = BAYER4[y % 4][x % 4];
-        if (norm < 0.04) {
-          row.push(' ');
+        if (norm > threshold) {
+          row.push((x * 7 + y * 3) % 2 === 0 ? '0' : '1');
         } else {
-          row.push(norm > threshold ? '1' : '0');
+          row.push(' ');
         }
       } else if (isNumbers) {
         if (norm < 0.08) {
