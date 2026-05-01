@@ -270,7 +270,8 @@ export function sharpenImage(rgba, w, h, strength) {
 
 export function brightnessToChars(brightness, w, h, chars, invert = false) {
   const n = chars.length - 1;
-  const isBinary = chars.length === 3 && chars.includes('0') && chars.includes('1') && chars.includes(' ');
+  const charsNoSpace = chars.replace(/\s/g, '');
+  const isBinary = charsNoSpace === '01' || charsNoSpace === '10';
   const grid = [];
   for (let y = 0; y < h; y++) {
     const row = [];
@@ -893,9 +894,15 @@ export function runPipeline(img, params) {
   bright = applyExposure(bright, exposure || 1.0);
   bright = applyGamma(bright, gamma);
   bright = applyContrast(bright, contrast);
-  bright = applyVignette(bright, gridCols, rows, vignette);
+  
+  // Skip vignette and edge weight for glyph-based modes (they darken the image too much)
+  const isGlyphMode = glyphMatch || glyphErrDiff;
+  if (!isGlyphMode) {
+    bright = applyVignette(bright, gridCols, rows, vignette);
+    bright = edgeBiasedBrightness(bright, gridCols, rows, edgeWeight);
+  }
+  
   bright = applyFilmGrain(bright, grain);
-  bright = edgeBiasedBrightness(bright, gridCols, rows, edgeWeight);
 
   if (saliencyAware) {
     const sal = computeSaliency(bright, gridCols, rows);
