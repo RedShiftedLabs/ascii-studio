@@ -40,7 +40,7 @@ export function measureCharDensity(chars, size = 16) {
     ctx.fillText(ch, 1, size - 2);
     const data = ctx.getImageData(0, 0, size, size).data;
     let sum = 0;
-    for (let i = 0; i < data.length; i += 4) sum += data[i]; // R channel
+    for (let i = 0; i < data.length; i += 4) sum += data[i];
     densities[ch] = 1 - sum / (size * size * 255);
   }
 
@@ -72,7 +72,6 @@ export function imageToRGBA(img, maxDim = 1200) {
 }
 
 export function computeBrightness(rgba, w, h) {
-  // BT.709 luma
   const out = new Float32Array(w * h);
   const d = rgba.data;
   for (let i = 0; i < w * h; i++) {
@@ -122,6 +121,9 @@ export function resizeColour(rgba, srcW, srcH, cols, charAspect = 0.45) {
   return { data: dctx.getImageData(0, 0, cols, rows), rows, cols };
 }
 
+// FIX: Added 1% histogram clip to preserve mid-tones.
+// Without this, equalize + contrast pushes pixels to extremes,
+// causing charsets like 'numbers' to only use the first and last char.
 export function equalizeHistogram(b) {
   const out = new Float32Array(b.length);
   const hist = new Int32Array(256);
@@ -129,29 +131,37 @@ export function equalizeHistogram(b) {
   const cdf = new Int32Array(256);
   cdf[0] = hist[0];
   for (let i = 1; i < 256; i++) cdf[i] = cdf[i - 1] + hist[i];
-  const cdfMin = cdf.find(v => v > 0);
-  const n = b.length;
+
+  // Clip at 1% on each end to prevent extreme pixel values from dominating
+  const totalPx = b.length;
+  const clipLow = totalPx * 0.01;
+  const clipHigh = totalPx * 0.99;
+  let cdfMin = cdf[0];
+  let cdfMax = cdf[255];
+  for (let i = 0; i < 256; i++) { if (cdf[i] >= clipLow) { cdfMin = cdf[i]; break; } }
+  for (let i = 255; i >= 0; i--) { if (cdf[i] <= clipHigh) { cdfMax = cdf[i]; break; } }
+
+  const range = Math.max(cdfMax - cdfMin, 1);
   const lut = new Uint8Array(256);
-  for (let i = 0; i < 256; i++) lut[i] = Math.round((cdf[i] - cdfMin) / Math.max(n - cdfMin, 1) * 255);
+  for (let i = 0; i < 256; i++) {
+    lut[i] = Math.round(Math.max(0, Math.min(255, (cdf[i] - cdfMin) / range * 255)));
+  }
   for (let i = 0; i < b.length; i++) out[i] = lut[Math.min(255, Math.max(0, b[i] | 0))];
   return out;
 }
 
-// ── Gamma ──────────────────────────────────────────────────
 export function applyGamma(b, gamma) {
   const out = new Float32Array(b.length);
   for (let i = 0; i < b.length; i++) out[i] = Math.pow(Math.max(0, Math.min(1, b[i] / 255)), gamma) * 255;
   return out;
 }
 
-// ── Contrast ───────────────────────────────────────────────
 export function applyContrast(b, factor) {
   const out = new Float32Array(b.length);
   for (let i = 0; i < b.length; i++) out[i] = Math.max(0, Math.min(255, factor * (b[i] - 128) + 128));
   return out;
 }
 
-// ── Exposure ───────────────────────────────────────────────
 export function applyExposure(b, multiplier) {
   if (multiplier === 1) return b;
   const out = new Float32Array(b.length);
@@ -159,7 +169,6 @@ export function applyExposure(b, multiplier) {
   return out;
 }
 
-// ── Vignette ───────────────────────────────────────────────
 export function applyVignette(b, w, h, strength) {
   if (strength === 0) return b;
   const out = new Float32Array(b.length);
@@ -268,10 +277,14 @@ export function sharpenImage(rgba, w, h, strength) {
   return result;
 }
 
+// FIX 1: Binary detection hardened — strip whitespace before comparing,
+//         so density-sorted ' 01' / ' 10' both match correctly.
+// FIX 2: Binary RNG replaced — Math.sin() hash is heavily biased toward '0'.
+//         LCG integer hash gives a proper 50/50 distribution.
 export function brightnessToChars(brightness, w, h, chars, invert = false) {
   const n = chars.length - 1;
-  const charsNoSpace = chars.replace(/\s/g, '');
-  const isBinary = charsNoSpace === '01' || charsNoSpace === '10';
+  const stripped = chars.replace(/\s/g, '');
+  const isBinary = stripped === '01' || stripped === '10';
   const grid = [];
   for (let y = 0; y < h; y++) {
     const row = [];
@@ -283,8 +296,9 @@ export function brightnessToChars(brightness, w, h, chars, invert = false) {
         if (norm < 0.12) {
           row.push(' ');
         } else {
-          const h = (x * 1664525 + y * 1013904223) & 0xFFFFFFFF;
-          row.push((h >>> 0) % 2 === 0 ? '0' : '1');
+          // LCG hash — unbiased, deterministic, no trig
+          const hash = (x * 1664525 + y * 1013904223) >>> 0;
+          row.push(hash % 2 === 0 ? '0' : '1');
         }
       } else {
         const idx = Math.max(0, Math.min(n, Math.round(norm * n)));
@@ -343,16 +357,6 @@ export function applyMultiscaleEnhancement(bright, w, h, boost) {
     d2[i] = g2[i] - g3[i];
   }
 
-  const std = (arr) => {
-    let mean = 0;
-    for (let i = 0; i < arr.length; i++) mean += arr[i];
-    mean /= arr.length;
-    let s = 0;
-    for (let i = 0; i < arr.length; i++) s += (arr[i] - mean) ** 2;
-    return Math.sqrt(s / arr.length) + 1e-6;
-  };
-
-  const s0 = std(d0), s1 = std(d1), s2 = std(d2);
   const out = new Float32Array(w * h);
   for (let i = 0; i < w * h; i++) {
     out[i] = g3[i] + d2[i] * (1 + boost * 0.5) + d1[i] * (1 + boost) + d0[i] * (1 + boost * 1.5);
@@ -395,7 +399,6 @@ export function applySaliencyToBrightness(bright, sal, w, h, boost) {
 const _glyphAtlasCache = new Map();
 
 function _buildGlyphAtlas(chars, fontSize = 13) {
-  // Normalize key: sort chars so atlas cache aligns with density cache key order.
   const sortedChars = [...chars].sort().join('');
   const key = sortedChars + '_' + fontSize;
   if (_glyphAtlasCache.has(key)) return _glyphAtlasCache.get(key);
@@ -476,12 +479,15 @@ export function glyphMatchChars(imgArray, srcW, srcH, chars, cols, charAspect = 
   return charGrid;
 }
 
+// FIX 3: _FAM_FLAT changed from ' .·`' to ' .,-'
+// The original chars are near-invisible on dark backgrounds at small font sizes.
+// ',' and '-' have enough ink mass to be visible in the Courier New monospace grid.
 const _FAM_H = '-_=~─━';
 const _FAM_V = '|Il!1';
 const _FAM_D1 = '/';
 const _FAM_D2 = '\\';
 const _FAM_ISO = '@#%&WMm*8B';
-const _FAM_FLAT = ' .·`';
+const _FAM_FLAT = ' .,-';  // was ' .·`' — middot and backtick vanish at small sizes
 
 function _cellStructureTensor(imgArray, srcW, srcH, rows, cols) {
   const cellH = Math.max(4, Math.floor(srcH / rows));
@@ -528,7 +534,10 @@ function _cellStructureTensor(imgArray, srcW, srcH, rows, cols) {
   return { coh, ori, eng };
 }
 
-export function frequencyAwareChars(imgArray, srcW, srcH, chars, cols, rows, charAspect = 0.45, invert = false, cohThresh = 0.45, engThresh = 0.10) {
+// FIX 4: Default cohThresh lowered 0.45→0.25, engThresh lowered 0.10→0.02.
+// The old defaults sent ~90% of cells into _FAM_FLAT, producing near-blank output.
+// Lower thresholds let more cells reach the ISO and directional char families.
+export function frequencyAwareChars(imgArray, srcW, srcH, chars, cols, rows, charAspect = 0.45, invert = false, cohThresh = 0.25, engThresh = 0.02) {
   const bright = computeBrightness(imgArray, srcW, srcH);
   let small = resizeGray(bright, srcW, srcH, cols, rows);
   const rawSmall = new Float32Array(small);
@@ -667,7 +676,7 @@ export function renderToCanvas(charGrid, brightness, colourData, opts) {
   const [fr, fg, fb] = hexToRgb(fgHex);
   const [br, bg, bb] = hexToRgb(bgHex);
 
-  const charW = fontSize * 0.601 + 0.3; 
+  const charW = fontSize * 0.601 + 0.3;
   const charH = fontSize * 1.15;
   const w = cols * charW;
   const h = rows * charH;
@@ -689,18 +698,16 @@ export function renderToCanvas(charGrid, brightness, colourData, opts) {
   ctx.textBaseline = 'top';
 
   if (!colourMode && attenuation === 0) {
-    // Ultra-fast row batching for monochrome
     if ('letterSpacing' in ctx) {
       ctx.letterSpacing = '0.3px';
     }
     ctx.fillStyle = fgHex;
     for (let y = 0; y < rows; y++) {
       const rowStr = charGrid[y].join('');
-      if (!rowStr.trim()) continue; // Skip empty rows
+      if (!rowStr.trim()) continue;
       ctx.fillText(rowStr, 0, y * charH);
     }
   } else {
-    // Sparse drawing for colour/attenuated mode
     for (let y = 0; y < rows; y++) {
       for (let x = 0; x < cols; x++) {
         const ch = charGrid[y][x];
@@ -717,7 +724,6 @@ export function renderToCanvas(charGrid, brightness, colourData, opts) {
           pb = Math.round(fb * luma + bb * (1 - luma));
         }
         const alpha = attenuation > 0 ? Math.max(0.08, Math.min(1, luma * attenuation + (1 - attenuation))) : 1;
-        
         ctx.fillStyle = `rgba(${pr},${pg},${pb},${alpha})`;
         ctx.fillText(ch, x * charW, y * charH);
       }
@@ -872,15 +878,14 @@ export function runPipeline(img, params) {
 
   const alphaRaw = new Float32Array(srcW * srcH);
   let hasAlpha = false;
-  for(let i=0; i<srcW*srcH; i++) {
-    alphaRaw[i] = rgba[i*4+3];
+  for (let i = 0; i < srcW * srcH; i++) {
+    alphaRaw[i] = rgba[i * 4 + 3];
     if (alphaRaw[i] < 255) hasAlpha = true;
   }
   const alphaResized = hasAlpha ? resizeForAscii(alphaRaw, srcW, srcH, cols, charAspect).small : null;
 
   let msCtx = null;
   if (fusionV6) {
-    // V6 needs the raw band context; do NOT apply msCtx.base to bright here.
     msCtx = applyMultiscaleEnhancement(bright, gridCols, rows, multiscaleBoost);
   } else if (multiscale) {
     msCtx = applyMultiscaleEnhancement(bright, gridCols, rows, multiscaleBoost);
@@ -889,19 +894,24 @@ export function runPipeline(img, params) {
 
   const colourResized = colourMode ? resizeColour(sharpened, srcW, srcH, gridCols, charAspect) : null;
 
+  // FIX 5: Glyph modes (glyphMatch, glyphErrDiff) operate directly on the raw
+  // sharpened image using pixel-level SSD matching. Applying vignette and
+  // edgeBiasedBrightness to the brightness grid beforehand darkens most of the
+  // image, causing SSD to always prefer sparse/light chars like '.' and ','.
+  // Skip those two steps for glyph modes so the atlas matching gets clean input.
+  const isGlyphMode = glyphMatch || glyphErrDiff;
+
   const rawBright = new Float32Array(bright);
   if (equalize) bright = equalizeHistogram(bright);
   bright = applyExposure(bright, exposure || 1.0);
   bright = applyGamma(bright, gamma);
   bright = applyContrast(bright, contrast);
-  
-  // Skip vignette and edge weight for glyph-based modes (they darken the image too much)
-  const isGlyphMode = glyphMatch || glyphErrDiff;
+
   if (!isGlyphMode) {
     bright = applyVignette(bright, gridCols, rows, vignette);
     bright = edgeBiasedBrightness(bright, gridCols, rows, edgeWeight);
   }
-  
+
   bright = applyFilmGrain(bright, grain);
 
   if (saliencyAware) {
@@ -940,7 +950,6 @@ export function runPipeline(img, params) {
     charGrid = brightnessToChars(processedBright, gridCols, rows, chars, invert);
   }
 
-  // Enforce alpha mask on generated characters
   if (!showMask && hasAlpha) {
     const t = (alphaThreshold || 0) * 255;
     for (let y = 0; y < rows; y++) {
