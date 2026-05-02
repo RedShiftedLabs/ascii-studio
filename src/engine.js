@@ -781,7 +781,7 @@ function _computeGradientSaliency(rgba, srcW, srcH, cols, rows) {
 }
 
 export function renderToCanvas(charGrid, brightness, colourData, opts, opacities = null) {
-  const { rows, cols, fgHex, bgHex, fontSize, attenuation, colourMode, outputFont, charset, charAspect } = opts;
+  const { rows, cols, fgHex, bgHex, bgTransparent, fontSize, attenuation, colourMode, outputFont, charset, charAspect } = opts;
   const [fr, fg, fb] = hexToRgb(fgHex);
   const [br, bg, bb] = hexToRgb(bgHex);
 
@@ -805,10 +805,12 @@ export function renderToCanvas(charGrid, brightness, colourData, opts, opacities
   canvas.style.width = `${w}px`;
   canvas.style.height = `${h}px`;
 
-  const ctx = canvas.getContext('2d', { alpha: false });
+  const ctx = canvas.getContext('2d', { alpha: !!bgTransparent });
   ctx.scale(dpr, dpr);
-  ctx.fillStyle = bgHex;
-  ctx.fillRect(0, 0, w, h);
+  if (!bgTransparent) {
+    ctx.fillStyle = bgHex;
+    ctx.fillRect(0, 0, w, h);
+  }
   ctx.font = `${fontSize}px ${outputFont}`;
   ctx.textBaseline = 'top';
 
@@ -866,7 +868,7 @@ export function renderToCanvas(charGrid, brightness, colourData, opts, opacities
 }
 
 export function renderToHTML(charGrid, brightness, colourData, opts, opacities = null) {
-  const { rows, cols, fgHex, bgHex, fontSize, attenuation, colourMode, outputFont, charset, charAspect } = opts;
+  const { rows, cols, fgHex, bgHex, bgTransparent, fontSize, attenuation, colourMode, outputFont, charset, charAspect } = opts;
   const [fr, fg, fb] = hexToRgb(fgHex);
   const [br, bg, bb] = hexToRgb(bgHex);
 
@@ -914,7 +916,7 @@ export function renderToHTML(charGrid, brightness, colourData, opts, opacities =
 }
 
 export function renderToSVG(charGrid, brightness, colourData, opts, opacities = null) {
-  const { rows, cols, fgHex, bgHex, fontSize, attenuation, colourMode, outputFont, charset, charAspect } = opts;
+  const { rows, cols, fgHex, bgHex, bgTransparent, fontSize, attenuation, colourMode, outputFont, charset, charAspect } = opts;
   const [fr, fg, fb] = hexToRgb(fgHex);
   const [br, bg, bb] = hexToRgb(bgHex);
 
@@ -933,7 +935,7 @@ export function renderToSVG(charGrid, brightness, colourData, opts, opacities = 
   const fontImport = `@import url('https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&family=IBM+Plex+Mono&family=Fira+Mono&family=Source+Code+Pro&family=Roboto+Mono&family=JetBrains+Mono&family=Inconsolata&family=Oxygen+Mono&family=Share+Tech+Mono&display=swap');`;
   const parts = [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${svgW.toFixed(1)}" height="${svgH.toFixed(1)}" viewBox="0 0 ${svgW.toFixed(1)} ${svgH.toFixed(1)}">`,
-    `<rect width="100%" height="100%" fill="${bgHex}"/>`,
+    bgTransparent ? '' : `<rect width="100%" height="100%" fill="${bgHex}"/>`,
     `<style>${fontImport} text{font-family:${outputFont};font-size:${fontSize}px;white-space:pre;letter-spacing:0.3px;}</style>`,
   ];
 

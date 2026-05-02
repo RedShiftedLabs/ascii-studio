@@ -248,7 +248,13 @@
             <div class="ctrl color-row">
               <div class="color-item">
                 <label>Background</label>
-                <input type="color" id="bg_hex" value="#0a0a0a" />
+                <div style="display:flex;align-items:center;gap:6px;">
+                  <input type="color" id="bg_hex" value="#0a0a0a" />
+                  <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-2);">
+                    <input type="checkbox" id="bg_transparent" />
+                    <label for="bg_transparent">Alpha</label>
+                  </div>
+                </div>
               </div>
               <div class="color-item">
                 <label>Text</label>

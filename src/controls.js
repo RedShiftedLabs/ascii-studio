@@ -21,6 +21,7 @@ export const DEFAULT_PARAMS = {
   grain: 0.05,
   theme: 'noir',
   bgHex: '#0a0a0a',
+  bgTransparent: false,
   fgHex: '#c8c8c8',
   colourMode: false,
   fontSize: 6,
@@ -155,6 +156,9 @@ export function initControls(onChange) {
   document.getElementById('bg_hex').addEventListener('input', e => {
     state.bgHex = e.target.value; onChange(state);
   });
+  document.getElementById('bg_transparent').addEventListener('change', e => {
+    state.bgTransparent = e.target.checked; onChange(state);
+  });
 
   bindSlider('ml_saliency_boost', 'saliencyBoost');
 
@@ -189,7 +193,6 @@ export function initControls(onChange) {
       onChange(state);
     });
   });
-
 
   bindSlider('font_size', 'fontSize', v => v);
   const fontSelect = document.getElementById('output_font');
@@ -306,8 +309,7 @@ export function initControls(onChange) {
     document.getElementById('font_size').value = DEFAULT_PARAMS.fontSize;
     document.getElementById('val-font_size').textContent = DEFAULT_PARAMS.fontSize;
 
-    ['equalize', 'dither', 'invert', 'show_mask', 'multiscale', 'saliency_aware',
-     'fusion_v6','freq_aware','glyph_match','glyph_err_diff','random_overlay'].forEach(id => {
+    ['equalize', 'dither', 'invert', 'show_mask', 'multiscale', 'saliency_aware', 'random_overlay', 'bg_transparent'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.checked = !!DEFAULT_PARAMS[id.replace(/_([a-z])/g, (_, c) => c.toUpperCase())];
     });
@@ -320,9 +322,8 @@ export function initControls(onChange) {
     const defTheme = THEMES[DEFAULT_PARAMS.theme];
     document.getElementById('bg_hex').value = defTheme.bg;
     document.getElementById('fg_hex').value = defTheme.fg;
-    document.getElementById('multiscale-sub').style.display = 'none';
-    document.getElementById('saliency-sub').style.display = 'none';
-    document.getElementById('freq-aware-sub').style.display = 'none';
+    if (document.getElementById('multiscale-sub')) document.getElementById('multiscale-sub').style.display = 'none';
+    if (document.getElementById('saliency-sub')) document.getElementById('saliency-sub').style.display = 'none';
     updateThemeSwatch(defTheme);
     flashColorPickers();
     updateGammaWarn();
