@@ -664,7 +664,9 @@ export function renderToCanvas(charGrid, brightness, colourData, opts) {
   const [fr, fg, fb] = hexToRgb(fgHex);
   const [br, bg, bb] = hexToRgb(bgHex);
 
-  const strippedChars = (charset === 'custom' && opts.customCharset) ? opts.customCharset.replace(/\s/g, '') : (charset || '').replace(/\s/g, '');
+  const safeCharset = String(charset || '');
+  const safeCustom = String(opts.customCharset || '');
+  const strippedChars = (charset === 'custom' && safeCustom) ? safeCustom.replace(/\s/g, '') : safeCharset.replace(/\s/g, '');
   const isBinary = strippedChars === '01' || strippedChars === '10' || charset === 'binary';
 
   const hGap = isBinary ? 1.0 : 0.3;
@@ -735,7 +737,9 @@ export function renderToHTML(charGrid, brightness, colourData, opts) {
   const [fr, fg, fb] = hexToRgb(fgHex);
   const [br, bg, bb] = hexToRgb(bgHex);
 
-  const isBinary = charset === 'binary' || (charset === 'custom' && opts.customCharset && opts.customCharset.replace(/\s/g, '') === '01');
+  const safeCharset = String(charset || '');
+  const safeCustom = String(opts.customCharset || '');
+  const isBinary = charset === 'binary' || (charset === 'custom' && safeCustom.replace(/\s/g, '') === '01');
   const hGap = isBinary ? '1px' : '0.3px';
   const lHeight = isBinary ? '1.1' : '1.15';
 
@@ -770,7 +774,9 @@ export function renderToSVG(charGrid, brightness, colourData, opts) {
   const [fr, fg, fb] = hexToRgb(fgHex);
   const [br, bg, bb] = hexToRgb(bgHex);
 
-  const strippedChars = (charset === 'custom' && opts.customCharset) ? opts.customCharset.replace(/\s/g, '') : (charset || '').replace(/\s/g, '');
+  const safeCharset = String(charset || '');
+  const safeCustom = String(opts.customCharset || '');
+  const strippedChars = (charset === 'custom' && safeCustom) ? safeCustom.replace(/\s/g, '') : safeCharset.replace(/\s/g, '');
   const isBinary = strippedChars === '01' || strippedChars === '10' || charset === 'binary';
   const hGap = isBinary ? 1.0 : 0.3;
   const lHeight = isBinary ? 1.10 : 1.15;
