@@ -9,7 +9,6 @@ import {
   triggerDownload, triggerDownloadText,
 } from './renderer.js';
 
-
 function _updateMLBadge() {
   const badge = document.getElementById('ml-saliency-badge');
   if (!badge) return;
@@ -195,7 +194,6 @@ async function doRender() {
   }
 }
 
-
 let currentZoom = null;
 let isFitToScreen = true;
 const zoomLevelTxt = document.getElementById('zoom-level');
@@ -228,6 +226,11 @@ zoomLevelTxt.addEventListener('click', () => {
   isFitToScreen = true;
   updateZoom();
 });
+const zoomObserver = new ResizeObserver(() => {
+  if (isFitToScreen) updateZoom();
+});
+zoomObserver.observe(document.getElementById('preview-wrap'));
+
 window.addEventListener('resize', () => {
   if (isFitToScreen) updateZoom();
 });

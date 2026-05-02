@@ -512,9 +512,8 @@ export function cleanupBinaryGrid(grid, w, h) {
   const getVal = (x, y) => {
     if (x < 0 || x >= w || y < 0 || y >= h) return 0;
     const c = grid[y][x];
-    return (c === '0' || c === '1') ? 1 : 0;
+    return (c !== ' ' && c !== '') ? 1 : 0;
   };
-
   const newGrid = grid.map(row => [...row]);
   for (let y = 1; y < h - 1; y++) {
     for (let x = 1; x < w - 1; x++) {
@@ -526,9 +525,8 @@ export function cleanupBinaryGrid(grid, w, h) {
           neighbors += getVal(x + dx, y + dy);
         }
       }
-
       if (self === 1 && neighbors <= 1) newGrid[y][x] = ' ';
-      if (self === 0 && neighbors >= 7) newGrid[y][x] = '1';
+      if (self === 0 && neighbors >= 7) newGrid[y][x] = grid[y][x - 1] || '1';
     }
   }
   return newGrid;
@@ -965,7 +963,7 @@ export function renderToSVG(charGrid, brightness, colourData, opts, opacities = 
           ? Math.max(0.08, Math.min(1, luma * attenuation + (1 - attenuation)))
           : 1;
       }
-      const esc = ch_ === '&' ? '&amp;' : ch_ === '<' ? '&lt;' : ch_ === '>' ? '&gt;' : ch_;
+      const esc = ch_ === '&' ? '&amp;' : ch_ === '<' ? '&lt;' : ch_ === '>' ? '&gt;' : ch_ === '"' ? '&quot;' : ch_ === "'" ? '&apos;' : ch_;
       spans.push(`<tspan fill="rgba(${pr},${pg},${pb},${alpha.toFixed(2)})">${esc}</tspan>`);
     }
     parts.push(`<text x="0" y="${ty.toFixed(1)}">${spans.join('')}</text>`);
