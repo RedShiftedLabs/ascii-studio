@@ -29,6 +29,99 @@ export const THEMES = {
 };
 
 const _densityCache = new Map();
+const _rasterCache = new Map();
+
+export function rasterizeCharset(chars, simW = 8, simH = 12, outputFont = 'monospace') {
+  const key = `${chars}_${simW}_${simH}_${outputFont}`;
+  if (_rasterCache.has(key)) return _rasterCache.get(key);
+
+  const canvas = new OffscreenCanvas(simW, simH);
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  const rasterList = [];
+
+  for (const char of chars) {
+    ctx.clearRect(0, 0, simW, simH);
+    ctx.fillStyle = 'black';
+    ctx.fillRect(0, 0, simW, simH);
+    ctx.fillStyle = 'white';
+    ctx.font = `${simH}px ${outputFont}`;
+    ctx.textBaseline = 'top';
+    ctx.textAlign = 'center';
+    ctx.fillText(char, simW / 2, 0);
+
+    const imgData = ctx.getImageData(0, 0, simW, simH).data;
+    const luma = new Float32Array(simW * simH);
+    let sum = 0;
+    for (let i = 0; i < simW * simH; i++) {
+      luma[i] = imgData[i * 4] / 255;
+      sum += luma[i];
+    }
+
+    const gx = new Float32Array(simW * simH);
+    const gy = new Float32Array(simW * simH);
+    for (let y = 1; y < simH - 1; y++) {
+      for (let x = 1; x < simW - 1; x++) {
+        const i = y * simW + x;
+        gx[i] = (luma[i + 1] - luma[i - 1]);
+        gy[i] = (luma[i + simW] - luma[i - simW]);
+      }
+    }
+
+    rasterList.push({
+      char,
+      luma,
+      gx,
+      gy,
+      density: sum / (simW * simH)
+    });
+  }
+
+  _rasterCache.set(key, rasterList);
+  return rasterList;
+}
+
+/**
+ * Stage 1: Retinex-inspired Tone Mapping
+ */
+export function retinexNormalization(b, w, h) {
+  const logB = new Float32Array(b.length);
+  for (let i = 0; i < b.length; i++) logB[i] = Math.log(1 + b[i]);
+
+  // Separable horizontal + vertical box blur (O(w*h) performance)
+  const radius = 8;
+  const blurred = new Float32Array(b.length);
+  const temp = new Float32Array(b.length);
+
+  // Horizontal pass
+  for (let y = 0; y < h; y++) {
+    let sum = 0, count = 0;
+    for (let x = 0; x < Math.min(radius, w); x++) { sum += logB[y * w + x]; count++; }
+    for (let x = 0; x < w; x++) {
+      if (x + radius < w) { sum += logB[y * w + x + radius]; count++; }
+      if (x - radius - 1 >= 0) { sum -= logB[y * w + x - radius - 1]; count--; }
+      temp[y * w + x] = sum / count;
+    }
+  }
+
+  // Vertical pass
+  for (let x = 0; x < w; x++) {
+    let sum = 0, count = 0;
+    for (let y = 0; y < Math.min(radius, h); y++) { sum += temp[y * w + x]; count++; }
+    for (let y = 0; y < h; y++) {
+      if (y + radius < h) { sum += temp[(y + radius) * w + x]; count++; }
+      if (y - radius - 1 >= 0) { sum -= temp[(y - radius - 1) * w + x]; count--; }
+      blurred[y * w + x] = sum / count;
+    }
+  }
+
+  const out = new Float32Array(b.length);
+  for (let i = 0; i < b.length; i++) {
+    const reflectance = logB[i] - blurred[i];
+    // Map log-reflectance back to 0-255 range with centered exposure
+    out[i] = Math.max(0, Math.min(255, (reflectance + 2) * 64));
+  }
+  return out;
+}
 
 export function measureCharDensity(chars, size = 16) {
   const key = chars + '_' + size;
@@ -54,7 +147,6 @@ export function measureCharDensity(chars, size = 16) {
   return sorted;
 }
 
-// LCG RNG — seeded, deterministic, no trig bias
 function _makeLCG(seed = 1337) {
   let s = seed >>> 0;
   return () => {
@@ -63,10 +155,6 @@ function _makeLCG(seed = 1337) {
   };
 }
 
-// Pick the right random pool based on charset content:
-//   binary  → ['0','1']
-//   numbers → all digit chars from the charset
-//   others  → full charset minus space
 function _randomPoolFromChars(chars) {
   const stripped = chars.replace(/\s/g, '');
   if (stripped === '01' || stripped === '10') return ['0', '1'];
@@ -78,7 +166,6 @@ export function randomOverlayChars(brightness, w, h, chars, invert = false, seed
   const pool = _randomPoolFromChars(chars);
   const rng = _makeLCG(seed);
 
-  // Build random char grid — layout is deterministic per seed
   const grid = [];
   for (let y = 0; y < h; y++) {
     const row = [];
@@ -88,16 +175,13 @@ export function randomOverlayChars(brightness, w, h, chars, invert = false, seed
     grid.push(row);
   }
 
-  // Per-cell opacity driven by image brightness.
-  // Smoothstep curve so mid-tones feel more natural.
-  // minOpacity=0.04 so dark areas still show ghost chars.
   const MIN_OPACITY = 0.04;
   const MAX_OPACITY = 1.0;
   const opacities = new Float32Array(w * h);
   for (let i = 0; i < w * h; i++) {
     let norm = brightness[i] / 255;
     if (invert) norm = 1 - norm;
-    const s = norm * norm * (3 - 2 * norm); // smoothstep
+    const s = norm * norm * (3 - 2 * norm);
     opacities[i] = MIN_OPACITY + s * (MAX_OPACITY - MIN_OPACITY);
   }
 
@@ -176,14 +260,6 @@ export function resizeColour(rgba, srcW, srcH, cols, charAspect = 0.45) {
   return { data: dctx.getImageData(0, 0, cols, rows), rows, cols };
 }
 
-
-
-
-
-
-
-
-
 export function equalizeHistogram(b, w, h) {
   const useLocal = w !== undefined && h !== undefined && w > 0 && h > 0;
   const n = b.length;
@@ -243,7 +319,7 @@ export function equalizeHistogram(b, w, h) {
     }
   }
 
-  const BLEND = 0.6; 
+  const BLEND = 0.6;
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const v = Math.min(255, Math.max(0, b[y * w + x] | 0));
@@ -399,113 +475,172 @@ export function sharpenImage(rgba, w, h, strength) {
   return result;
 }
 
+/**
+ * Aggressive Local Contrast Normalization (ALCN)
+ * Prevents shadows from crushing and highlights from blowing out by 
+ * normalizing pixel values relative to their 16x16 local neighborhood.
+ */
+export function localContrastNormalization(b, w, h, tileSize = 16) {
+  const out = new Float32Array(b.length);
+  const tilesX = Math.ceil(w / tileSize);
+  const tilesY = Math.ceil(h / tileSize);
 
+  for (let ty = 0; ty < tilesY; ty++) {
+    for (let tx = 0; tx < tilesX; tx++) {
+      const x0 = tx * tileSize, y0 = ty * tileSize;
+      const x1 = Math.min(x0 + tileSize, w), y1 = Math.min(y0 + tileSize, h);
 
+      let min = 255, max = 0, sum = 0, count = 0;
+      for (let y = y0; y < y1; y++) {
+        for (let x = x0; x < x1; x++) {
+          const v = b[y * w + x];
+          if (v < min) min = v;
+          if (v > max) max = v;
+          sum += v;
+          count++;
+        }
+      }
 
+      const avg = sum / count;
+      const range = Math.max(max - min, 20);
 
+      for (let y = y0; y < y1; y++) {
+        for (let x = x0; x < x1; x++) {
+          const idx = y * w + x;
+          let norm = (b[idx] - min) / range * 255;
+          out[idx] = norm * 0.8 + b[idx] * 0.2;
+        }
+      }
+    }
+  }
+  return out;
+}
 
+/**
+ * Binary Post-Process Cleanup
+ * Removes isolated "speckles" (1 surrounded by 0s) and 
+ * fills "holes" (0 surrounded by 1s) to improve grouping.
+ */
+export function cleanupBinaryGrid(grid, w, h) {
+  const getVal = (x, y) => {
+    if (x < 0 || x >= w || y < 0 || y >= h) return 0;
+    const c = grid[y][x];
+    return (c === '0' || c === '1') ? 1 : 0;
+  };
 
+  const newGrid = grid.map(row => [...row]);
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const self = getVal(x, y);
+      let neighbors = 0;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if (dx === 0 && dy === 0) continue;
+          neighbors += getVal(x + dx, y + dy);
+        }
+      }
 
-
-
-
-
-
-
-
-
-
-const _BINARY_DENSITY = [
-  '     ',      
-  '    0',      
-  '   00',      
-  '  000',      
-  ' 0000',      
-  '00000',      
-  '00001',      
-  '00010',      
-  '00100',      
-  '00011',      
-  '00101',      
-  '001001',     
-  '00110',      
-  '01001',      
-  '010010',     
-  '01010',      
-  '010101',     
-  '01011',      
-  '101010',     
-  '01101',      
-  '10110',      
-  '011011',     
-  '01110',      
-  '10111',      
-  '011101',     
-  '11011',      
-  '110110',     
-  '11101',      
-  '111011',     
-  '11110',      
-  '111101',     
-  '11111',      
-  '111110',     
-  '1111110',    
-  '11111110',   
-  '111111111',  
-  '1111111111', 
-];
+      if (self === 1 && neighbors <= 1) newGrid[y][x] = ' ';
+      if (self === 0 && neighbors >= 7) newGrid[y][x] = '1';
+    }
+  }
+  return newGrid;
+}
 
 
 function cellOffset(x, y) {
   return ((x * 6 + y * 11) >>> 0) % 7;
 }
 
-
-
-
-
-
-
-
-
-
-
-export function brightnessToChars(brightness, w, h, chars, invert = false) {
+export function brightnessToChars(brightness, w, h, chars, invert = false, edgeMag = null, fullResData = null) {
   const n = chars.length - 1;
   const stripped = chars.replace(/\s/g, '');
   const isBinary = stripped === '01' || stripped === '10';
   const isNumbers = /^[0-9]+$/.test(stripped);
 
   const gentleCurve = (t) => Math.pow(t, 0.92);
+  const sCurve = (t) => t * t * (3 - 2 * t);
 
+  if (fullResData) {
+    const simW = 8, simH = 12;
+    const rasters = rasterizeCharset(chars, simW, simH);
+    const rasterMap = new Map(rasters.map(r => [r.char, r]));
+    const srcW = fullResData.w, srcH = fullResData.h;
+    const data = fullResData.data;
+
+    const grid = [];
+    for (let y = 0; y < h; y++) {
+      const row = [];
+      const sy0 = Math.floor((y / h) * srcH), sy1 = Math.floor(((y + 1) / h) * srcH);
+      for (let x = 0; x < w; x++) {
+        const sx0 = Math.floor((x / w) * srcW), sx1 = Math.floor(((x + 1) / w) * srcW);
+
+        const patch = new Float32Array(simW * simH);
+        const pgx = new Float32Array(simW * simH);
+        const pgy = new Float32Array(simW * simH);
+        for (let py = 0; py < simH; py++) {
+          for (let px = 0; px < simW; px++) {
+            const srcX = sx0 + Math.floor((px / simW) * (sx1 - sx0));
+            const srcY = sy0 + Math.floor((py / simH) * (sy1 - sy0));
+            let val = data[srcY * srcW + srcX] / 255;
+            if (invert) val = 1 - val;
+            patch[py * simW + px] = isBinary ? sCurve(val) : gentleCurve(val);
+          }
+        }
+        for (let i = simW + 1; i < patch.length - simW - 1; i++) {
+          pgx[i] = patch[i + 1] - patch[i - 1];
+          pgy[i] = patch[i + simW] - patch[i - simW];
+        }
+
+        const idx = y * w + x;
+        const weight = 1.0 + (edgeMag ? edgeMag[idx] * 2.0 : 0);
+
+        let bestChar = chars[0], minErr = Infinity;
+        for (const r of rasters) {
+          let err = 0;
+          for (let i = 0; i < patch.length; i++) {
+            const dLuma = patch[i] - r.luma[i];
+            const dGx = pgx[i] - r.gx[i];
+            const dGy = pgy[i] - r.gy[i];
+            err += dLuma * dLuma + (dGx * dGx + dGy * dGy) * 0.5;
+          }
+
+          if (x > 0) {
+            const prevR = rasterMap.get(row[x - 1]);
+            if (prevR) {
+              const densityDiff = Math.abs(r.density - prevR.density);
+              err += densityDiff * 0.15;
+            }
+          }
+
+          if (err * weight < minErr) {
+            minErr = err * weight;
+            bestChar = r.char;
+          }
+        }
+        row.push(bestChar);
+      }
+      grid.push(row);
+    }
+    return isBinary ? cleanupBinaryGrid(grid, w, h) : grid;
+  }
+
+  // Fallback: density mapping
   const grid = [];
   for (let y = 0; y < h; y++) {
     const row = [];
     for (let x = 0; x < w; x++) {
       let norm = brightness[y * w + x] / 255;
       if (invert) norm = 1 - norm;
-
-      if (isBinary) {
-        const curved = norm < 0.05 ? 0 : Math.pow(norm, 0.85);
-        const patIdx = Math.max(0, Math.min(
-          _BINARY_DENSITY.length - 1,
-          Math.round(curved * (_BINARY_DENSITY.length - 1))
-        ));
-        const pat = _BINARY_DENSITY[patIdx];
-        const pos = (x + cellOffset(x, y)) % pat.length;
-        row.push(pat[pos]);
-      } else if (isNumbers) {
-        if (norm < 0.06) {
-          row.push(' ');
-        } else {
-          const curved = gentleCurve((norm - 0.06) / 0.94);
-          const charIdx = Math.round(curved * n);
-          row.push(chars[Math.max(0, Math.min(n, charIdx))]);
+      if (isNumbers) {
+        if (norm < 0.06) { row.push(' '); }
+        else {
+          const curved = Math.pow((norm - 0.06) / 0.94, 0.92);
+          row.push(chars[Math.max(0, Math.min(n, Math.round(curved * n)))]);
         }
       } else {
-        const curved = gentleCurve(norm);
-        const idx = Math.max(0, Math.min(n, Math.round(curved * n)));
-        row.push(chars[idx]);
+        const curved = Math.pow(norm, 0.92);
+        row.push(chars[Math.max(0, Math.min(n, Math.round(curved * n)))]);
       }
     }
     grid.push(row);
@@ -514,54 +649,31 @@ export function brightnessToChars(brightness, w, h, chars, invert = false) {
 }
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 export const PORTRAIT_BINARY_DEFAULTS = {
-  cols: 160,          
+  cols: 160,
   charset: 'binary',
-  charAspect: 0.46,   
-  contrast: 1.05,     
-  gamma: 1.0,         
+  charAspect: 0.46,
+  contrast: 1.05,
+  gamma: 1.0,
   exposure: 1.0,
-  edgeWeight: 0,      
-  sharpen: 0.1,       
+  edgeWeight: 0,
+  sharpen: 0.1,
   vignette: 0,
   grain: 0,
   equalize: true,
-  dither: false,      
+  dither: false,
   invert: false,
-  fontSize: 7,        
+  fontSize: 7,
 };
-
-
 
 export function hexToRgb(hex) {
   const h = hex.replace('#', '');
   return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
 }
 
-
-
-
-
-
-
 let _tfReady = false;
 let _mlSaliencyModel = null;
-let _mlSaliencyStatus = 'idle'; 
+let _mlSaliencyStatus = 'idle';
 
 export function getMLSaliencyStatus() { return _mlSaliencyStatus; }
 
@@ -584,9 +696,7 @@ async function _loadMLSaliencyModel() {
   }
 }
 
-
 _loadMLSaliencyModel();
-
 
 export async function computeMLSaliency(rgba, srcW, srcH, cols, rows) {
   if (_mlSaliencyStatus === 'ready' && _mlSaliencyModel) {
@@ -639,14 +749,14 @@ async function _computeNeuralSaliency(rgba, srcW, srcH, cols, rows) {
         inputs: internalModel.inputs,
         outputs: targetLayer.output,
       });
-      const features = featureModel.predict(inputTensor); 
-      const averaged = tf.mean(features, 3); 
-      const squeezed = averaged.squeeze([0]); 
+      const features = featureModel.predict(inputTensor);
+      const averaged = tf.mean(features, 3);
+      const squeezed = averaged.squeeze([0]);
       const relu = tf.relu(squeezed);
       const minV = relu.min();
       const maxV = relu.max();
       const normalised = relu.sub(minV).div(maxV.sub(minV).add(1e-8));
-      salMap = await normalised.array(); 
+      salMap = await normalised.array();
       tf.dispose([features, averaged, squeezed, relu, normalised, minV, maxV, featureModel]);
     }
   } catch (e) {
@@ -1023,9 +1133,32 @@ export async function runPipeline(img, params) {
       charGrid.push(row);
     }
   } else {
-    let processedBright = bright;
-    if (dither && !isBinaryCharset) processedBright = floydSteinberg(bright, gridCols, rows, chars.length);
-    charGrid = brightnessToChars(processedBright, gridCols, rows, chars, invert);
+    // Pass Sobel magnitude and full-res data for patch matching
+    let edgeMag = null;
+    let fullResData = null;
+
+    // Stage 1: Pre-processing (Retinex / Local Normalization)
+    const processedBright = retinexNormalization(bright, gridCols, rows);
+
+    const { gx, gy } = sobel(processedBright, gridCols, rows);
+    edgeMag = new Float32Array(gridCols * rows);
+    let maxM = 0;
+    for (let i = 0; i < edgeMag.length; i++) {
+      edgeMag[i] = Math.sqrt(gx[i] * gx[i] + gy[i] * gy[i]);
+      if (edgeMag[i] > maxM) maxM = edgeMag[i];
+    }
+    if (maxM > 0) for (let i = 0; i < edgeMag.length; i++) edgeMag[i] /= maxM;
+
+    // Level 4: Enable patch matching for high-quality charsets
+    if (isBinaryCharset || charset === 'full' || charset === 'lineart' || charset === 'edges') {
+      fullResData = {
+        data: computeBrightness(sharpened, srcW, srcH),
+        w: srcW,
+        h: srcH
+      };
+    }
+
+    charGrid = brightnessToChars(processedBright, gridCols, rows, chars, invert, edgeMag, fullResData);
   }
 
 
