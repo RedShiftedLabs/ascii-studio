@@ -160,12 +160,15 @@ export function initControls(onChange) {
 
   bindSlider('font_size', 'fontSize', v => v);
   const fontSelect = document.getElementById('output_font');
-  fontSelect.addEventListener('change', () => {
-    state.outputFont = fontSelect.value;
-    updateFontPreview(fontSelect.value);
-    onChange(state);
-  });
-  updateFontPreview(state.outputFont);
+  if (fontSelect) {
+    fontSelect.value = state.outputFont;
+    fontSelect.addEventListener('change', () => {
+      state.outputFont = fontSelect.value;
+      updateFontPreview(fontSelect.value);
+      onChange(state);
+    });
+    updateFontPreview(state.outputFont);
+  }
 
   document.querySelectorAll('.section-head').forEach(head => {
     head.addEventListener('click', () => {
@@ -277,6 +280,7 @@ export function initControls(onChange) {
 
     document.getElementById('charset').value = DEFAULT_PARAMS.charset;
     document.getElementById('theme').value = DEFAULT_PARAMS.theme;
+    document.getElementById('output_font').value = DEFAULT_PARAMS.outputFont;
     document.getElementById('tone_preset').value = 'default';
 
     const defTheme = THEMES[DEFAULT_PARAMS.theme];
