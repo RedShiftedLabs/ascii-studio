@@ -51,33 +51,42 @@ export async function render(params) {
     outputFont: params.outputFont,
     multiscale: params.multiscale,
     multiscaleBoost: params.multiscaleBoost,
-    mlSaliency: params.mlSaliency,
-    mlSaliencyBoost: params.mlSaliencyBoost,
+    saliencyAware: params.saliencyAware,
+    saliencyBoost: params.saliencyBoost,
+    fusionV6: params.fusionV6,
+    freqAware: params.freqAware,
+    freqAwareCohThresh: params.freqAwareCohThresh,
+    freqAwareEngThresh: params.freqAwareEngThresh,
+    glyphMatch: params.glyphMatch,
+    glyphErrDiff: params.glyphErrDiff,
+    randomOverlay: params.randomOverlay,
     customCharset: params.customCharset || '',
   };
 
   lastResult = await runPipeline(currentImg, enriched);
   lastParams = enriched;
 
-  return renderToCanvas(lastResult.charGrid, lastResult.brightness, lastResult.colourData, {
-    rows: lastResult.rows,
-    cols: lastResult.cols,
-    ...enriched,
-  });
+  return renderToCanvas(
+    lastResult.charGrid,
+    lastResult.brightness,
+    lastResult.colourData,
+    { rows: lastResult.rows, cols: lastResult.cols, ...enriched },
+    lastResult.opacities || null,
+  );
 }
 
 export function exportHTML() {
   if (!lastResult || !lastParams) return null;
   return renderToHTML(lastResult.charGrid, lastResult.brightness, lastResult.colourData, {
     rows: lastResult.rows, cols: lastResult.cols, ...lastParams,
-  });
+  }, lastResult.opacities || null);
 }
 
 export function exportSVG() {
   if (!lastResult || !lastParams) return null;
   return renderToSVG(lastResult.charGrid, lastResult.brightness, lastResult.colourData, {
     rows: lastResult.rows, cols: lastResult.cols, ...lastParams,
-  });
+  }, lastResult.opacities || null);
 }
 
 export function exportTXT() {

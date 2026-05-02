@@ -278,8 +278,44 @@
           <div class="section-body">
 
             <div class="toggle-row">
-              <input type="checkbox" id="ml_saliency" />
-              <label for="ml_saliency">Neural Saliency</label>
+              <input type="checkbox" id="fusion_v6" />
+              <label for="fusion_v6">Perceptual Fusion V6</label>
+            </div>
+
+            <div class="toggle-row">
+              <input type="checkbox" id="freq_aware" />
+              <label for="freq_aware">Frequency-aware mapping</label>
+            </div>
+
+            <div class="sub-ctrl" id="freq-aware-sub">
+              <div class="ctrl">
+                <div class="ctrl-label">Coherence thresh <span class="ctrl-val" id="val-freq_aware_coh_thresh">0.25</span></div>
+                <input type="range" id="freq_aware_coh_thresh" min="0.05" max="0.8" step="0.05" value="0.25" />
+              </div>
+              <div class="ctrl">
+                <div class="ctrl-label">Energy thresh <span class="ctrl-val" id="val-freq_aware_eng_thresh">0.02</span></div>
+                <input type="range" id="freq_aware_eng_thresh" min="0.005" max="0.1" step="0.005" value="0.02" />
+              </div>
+            </div>
+
+            <div class="toggle-row">
+              <input type="checkbox" id="glyph_match" />
+              <label for="glyph_match">Glyph Match (SSIM)</label>
+            </div>
+
+            <div class="toggle-row">
+              <input type="checkbox" id="glyph_err_diff" />
+              <label for="glyph_err_diff">Glyph Error Diffusion</label>
+            </div>
+
+            <div class="toggle-row">
+              <input type="checkbox" id="random_overlay" />
+              <label for="random_overlay">Random Overlay</label>
+            </div>
+
+            <div class="toggle-row">
+              <input type="checkbox" id="saliency_aware" />
+              <label for="saliency_aware">Neural Saliency</label>
               <span id="ml-saliency-badge" style="margin-left:auto;font-size:9px;font-family:'Geist Mono',monospace;
                padding:2px 6px;border-radius:3px;background:var(--surface-3);
                color:var(--text-3);border:1px solid var(--border-2);">
@@ -287,7 +323,7 @@
               </span>
             </div>
 
-            <div class="sub-ctrl" id="ml-saliency-sub">
+            <div class="sub-ctrl" id="saliency-sub">
               <div class="ctrl">
                 <div class="ctrl-label">
                   Saliency boost

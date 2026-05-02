@@ -25,8 +25,15 @@ export const DEFAULT_PARAMS = {
   colourMode: false,
   fontSize: 6,
   outputFont: "'Courier New',Courier,monospace",
-  mlSaliency: false,
-  mlSaliencyBoost: 0.60,
+  saliencyAware: false,
+  saliencyBoost: 0.60,
+  fusionV6: false,
+  freqAware: false,
+  freqAwareCohThresh: 0.25,
+  freqAwareEngThresh: 0.02,
+  glyphMatch: false,
+  glyphErrDiff: false,
+  randomOverlay: false,
 };
 
 export function initControls(onChange) {
@@ -148,15 +155,51 @@ export function initControls(onChange) {
   bindSlider('vignette', 'vignette');
   bindSlider('grain', 'grain');
 
-  document.getElementById('bg_hex').addEventListener('input', e => {
-    state.bgHex = e.target.value; onChange(state);
-  });
   document.getElementById('fg_hex').addEventListener('input', e => {
     state.fgHex = e.target.value; onChange(state);
   });
 
-  bindCheckbox('ml_saliency', 'mlSaliency', 'ml-saliency-sub');
-  bindSlider('ml_saliency_boost', 'mlSaliencyBoost');
+  bindCheckbox('saliency_aware', 'saliencyAware', 'saliency-sub');
+  bindSlider('saliency_boost', 'saliencyBoost');
+
+  // Advanced render modes — mutually exclusive
+  const _advancedModes = [
+    { id: 'fusion_v6',      key: 'fusionV6' },
+    { id: 'freq_aware',     key: 'freqAware', subCtrlId: 'freq-aware-sub' },
+    { id: 'glyph_match',    key: 'glyphMatch' },
+    { id: 'glyph_err_diff', key: 'glyphErrDiff' },
+    { id: 'random_overlay', key: 'randomOverlay' },
+    { id: 'saliency_aware', key: 'saliencyAware', subCtrlId: 'saliency-sub' },
+  ];
+
+  _advancedModes.forEach(({ id, key, subCtrlId }) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.checked = state[key];
+    const sub = subCtrlId ? document.getElementById(subCtrlId) : null;
+    if (sub) sub.style.display = state[key] ? '' : 'none';
+    el.addEventListener('change', () => {
+      if (el.checked) {
+        _advancedModes.forEach(m => {
+          if (m.id !== id) {
+            state[m.key] = false;
+            const other = document.getElementById(m.id);
+            if (other) other.checked = false;
+            if (m.subCtrlId) {
+              const subEl = document.getElementById(m.subCtrlId);
+              if (subEl) subEl.style.display = 'none';
+            }
+          }
+        });
+      }
+      state[key] = el.checked;
+      if (sub) sub.style.display = el.checked ? '' : 'none';
+      onChange(state);
+    });
+  });
+
+  bindSlider('freq_aware_coh_thresh', 'freqAwareCohThresh');
+  bindSlider('freq_aware_eng_thresh', 'freqAwareEngThresh');
 
   bindSlider('font_size', 'fontSize', v => v);
   const fontSelect = document.getElementById('output_font');
@@ -224,9 +267,9 @@ export function initControls(onChange) {
         }
       });
 
-      ['equalize', 'dither', 'invert', 'showMask', 'multiscale', 'mlSaliency'].forEach(k => {
+      ['equalize', 'dither', 'invert', 'showMask', 'multiscale', 'saliencyAware'].forEach(k => {
         if (preset[k] === undefined) return;
-        const domId = k.replace(/([A-Z])/g, "_$1").toLowerCase();
+        const domId = k === 'saliencyAware' ? 'saliency_aware' : k.replace(/([A-Z])/g, "_$1").toLowerCase();
         const el = document.getElementById(domId);
         if (el) el.checked = preset[k];
       });
@@ -273,7 +316,8 @@ export function initControls(onChange) {
     document.getElementById('font_size').value = DEFAULT_PARAMS.fontSize;
     document.getElementById('val-font_size').textContent = DEFAULT_PARAMS.fontSize;
 
-    ['equalize', 'dither', 'invert', 'show_mask', 'multiscale', 'ml_saliency'].forEach(id => {
+    ['equalize', 'dither', 'invert', 'show_mask', 'multiscale', 'saliency_aware',
+     'fusion_v6','freq_aware','glyph_match','glyph_err_diff','random_overlay'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.checked = !!DEFAULT_PARAMS[id.replace(/_([a-z])/g, (_, c) => c.toUpperCase())];
     });
@@ -287,7 +331,8 @@ export function initControls(onChange) {
     document.getElementById('bg_hex').value = defTheme.bg;
     document.getElementById('fg_hex').value = defTheme.fg;
     document.getElementById('multiscale-sub').style.display = 'none';
-    document.getElementById('ml-saliency-sub').style.display = 'none';
+    document.getElementById('saliency-sub').style.display = 'none';
+    document.getElementById('freq-aware-sub').style.display = 'none';
     updateThemeSwatch(defTheme);
     flashColorPickers();
     updateGammaWarn();

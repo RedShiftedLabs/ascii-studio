@@ -54,6 +54,56 @@ export function measureCharDensity(chars, size = 16) {
   return sorted;
 }
 
+// LCG RNG — seeded, deterministic, no trig bias
+function _makeLCG(seed = 1337) {
+  let s = seed >>> 0;
+  return () => {
+    s = (Math.imul(1664525, s) + 1013904223) >>> 0;
+    return s / 0xFFFFFFFF;
+  };
+}
+
+// Pick the right random pool based on charset content:
+//   binary  → ['0','1']
+//   numbers → all digit chars from the charset
+//   others  → full charset minus space
+function _randomPoolFromChars(chars) {
+  const stripped = chars.replace(/\s/g, '');
+  if (stripped === '01' || stripped === '10') return ['0', '1'];
+  if (/^[0-9]+$/.test(stripped)) return [...stripped];
+  return [...stripped];
+}
+
+export function randomOverlayChars(brightness, w, h, chars, invert = false, seed = 42) {
+  const pool = _randomPoolFromChars(chars);
+  const rng = _makeLCG(seed);
+
+  // Build random char grid — layout is deterministic per seed
+  const grid = [];
+  for (let y = 0; y < h; y++) {
+    const row = [];
+    for (let x = 0; x < w; x++) {
+      row.push(pool[Math.floor(rng() * pool.length)]);
+    }
+    grid.push(row);
+  }
+
+  // Per-cell opacity driven by image brightness.
+  // Smoothstep curve so mid-tones feel more natural.
+  // minOpacity=0.04 so dark areas still show ghost chars.
+  const MIN_OPACITY = 0.04;
+  const MAX_OPACITY = 1.0;
+  const opacities = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) {
+    let norm = brightness[i] / 255;
+    if (invert) norm = 1 - norm;
+    const s = norm * norm * (3 - 2 * norm); // smoothstep
+    opacities[i] = MIN_OPACITY + s * (MAX_OPACITY - MIN_OPACITY);
+  }
+
+  return { charGrid: grid, opacities };
+}
+
 export function loadImageFromFile(file) {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -644,7 +694,7 @@ function _computeGradientSaliency(rgba, srcW, srcH, cols, rows) {
 
 
 
-export function renderToCanvas(charGrid, brightness, colourData, opts) {
+export function renderToCanvas(charGrid, brightness, colourData, opts, opacities = null) {
   const { rows, cols, fgHex, bgHex, fontSize, attenuation, colourMode, outputFont, charset } = opts;
   const [fr, fg, fb] = hexToRgb(fgHex);
   const [br, bg, bb] = hexToRgb(bgHex);
@@ -671,10 +721,8 @@ export function renderToCanvas(charGrid, brightness, colourData, opts) {
 
   const ctx = canvas.getContext('2d', { alpha: false });
   ctx.scale(dpr, dpr);
-
   ctx.fillStyle = bgHex;
   ctx.fillRect(0, 0, w, h);
-
   ctx.font = `${fontSize}px ${outputFont}`;
   ctx.textBaseline = 'top';
 
@@ -684,40 +732,57 @@ export function renderToCanvas(charGrid, brightness, colourData, opts) {
     ctx.letterSpacing = `${hGap}px`;
   }
 
-  if (!colourMode && attenuation === 0) {
+  // Fast monochrome path — only when no per-cell opacity needed
+  if (!colourMode && attenuation === 0 && !opacities) {
     ctx.fillStyle = fgHex;
     for (let y = 0; y < rows; y++) {
       const rowStr = charGrid[y].join('');
       if (!rowStr.trim()) continue;
       ctx.fillText(rowStr, 0, y * charH);
     }
-  } else {
-    for (let y = 0; y < rows; y++) {
-      for (let x = 0; x < cols; x++) {
-        const ch = charGrid[y][x];
-        if (ch === ' ') continue;
+    return canvas;
+  }
 
-        const luma = brightness[y * cols + x] / 255;
-        let pr, pg, pb;
-        if (colourMode && colourData) {
-          const ci = (y * cols + x) * 4;
-          pr = colourData.data[ci]; pg = colourData.data[ci + 1]; pb = colourData.data[ci + 2];
-        } else {
-          pr = Math.round(fr * luma + br * (1 - luma));
-          pg = Math.round(fg * luma + bg * (1 - luma));
-          pb = Math.round(fb * luma + bb * (1 - luma));
-        }
-        const alpha = attenuation > 0 ? Math.max(0.08, Math.min(1, luma * attenuation + (1 - attenuation))) : 1;
-        ctx.fillStyle = `rgba(${pr},${pg},${pb},${alpha})`;
-        ctx.fillText(ch, x * charW, y * charH);
+  // Per-cell path
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      const ch = charGrid[y][x];
+      if (ch === ' ') continue;
+
+      const idx = y * cols + x;
+      const luma = brightness[idx] / 255;
+
+      let pr, pg, pb;
+      if (colourMode && colourData) {
+        const ci = idx * 4;
+        pr = colourData.data[ci];
+        pg = colourData.data[ci + 1];
+        pb = colourData.data[ci + 2];
+      } else {
+        pr = Math.round(fr * luma + br * (1 - luma));
+        pg = Math.round(fg * luma + bg * (1 - luma));
+        pb = Math.round(fb * luma + bb * (1 - luma));
       }
+
+      // opacities array takes priority over attenuation
+      let alpha;
+      if (opacities) {
+        alpha = opacities[idx];
+      } else {
+        alpha = attenuation > 0
+          ? Math.max(0.08, Math.min(1, luma * attenuation + (1 - attenuation)))
+          : 1;
+      }
+
+      ctx.fillStyle = `rgba(${pr},${pg},${pb},${alpha.toFixed(3)})`;
+      ctx.fillText(ch, x * charW, y * charH);
     }
   }
 
   return canvas;
 }
 
-export function renderToHTML(charGrid, brightness, colourData, opts) {
+export function renderToHTML(charGrid, brightness, colourData, opts, opacities = null) {
   const { rows, cols, fgHex, bgHex, fontSize, attenuation, colourMode, outputFont, charset } = opts;
   const [fr, fg, fb] = hexToRgb(fgHex);
   const [br, bg, bb] = hexToRgb(bgHex);
@@ -733,17 +798,28 @@ export function renderToHTML(charGrid, brightness, colourData, opts) {
     const parts = [];
     for (let x = 0; x < cols; x++) {
       const ch = charGrid[y][x];
-      const luma = brightness[y * cols + x] / 255;
+      const idx = y * cols + x;
+      const luma = brightness[idx] / 255;
+
       let pr, pg, pb;
       if (colourMode && colourData) {
-        const ci = (y * cols + x) * 4;
+        const ci = idx * 4;
         pr = colourData.data[ci]; pg = colourData.data[ci + 1]; pb = colourData.data[ci + 2];
       } else {
         pr = Math.round(fr * luma + br * (1 - luma));
         pg = Math.round(fg * luma + bg * (1 - luma));
         pb = Math.round(fb * luma + bb * (1 - luma));
       }
-      const alpha = attenuation > 0 ? Math.max(0.08, Math.min(1, luma * attenuation + (1 - attenuation))) : 1;
+
+      let alpha;
+      if (opacities) {
+        alpha = opacities[idx];
+      } else {
+        alpha = attenuation > 0
+          ? Math.max(0.08, Math.min(1, luma * attenuation + (1 - attenuation)))
+          : 1;
+      }
+
       const esc = ch === '&' ? '&amp;' : ch === '<' ? '&lt;' : ch === '>' ? '&gt;' : ch;
       parts.push(`<span style="color:rgba(${pr},${pg},${pb},${alpha.toFixed(2)})">${esc}</span>`);
     }
@@ -754,8 +830,8 @@ export function renderToHTML(charGrid, brightness, colourData, opts) {
     `<pre style="font-family:${outputFont};font-size:${fontSize}px;line-height:${lHeight};margin:0;letter-spacing:${hGap};">${lines.join('\n')}</pre></div>`;
 }
 
-export function renderToSVG(charGrid, brightness, colourData, opts) {
-  const { rows, cols, fgHex, bgHex, fontSize, attenuation, colourMode, outputFont } = opts;
+export function renderToSVG(charGrid, brightness, colourData, opts, opacities = null) {
+  const { rows, cols, fgHex, bgHex, fontSize, attenuation, colourMode, outputFont, charset } = opts;
   const [fr, fg, fb] = hexToRgb(fgHex);
   const [br, bg, bb] = hexToRgb(bgHex);
 
@@ -782,17 +858,27 @@ export function renderToSVG(charGrid, brightness, colourData, opts) {
     const spans = [];
     for (let x = 0; x < cols; x++) {
       const ch_ = charGrid[y][x];
-      const luma = brightness[y * cols + x] / 255;
+      const idx = y * cols + x;
+      const luma = brightness[idx] / 255;
+
       let pr, pg, pb;
       if (colourMode && colourData) {
-        const ci = (y * cols + x) * 4;
+        const ci = idx * 4;
         pr = colourData.data[ci]; pg = colourData.data[ci + 1]; pb = colourData.data[ci + 2];
       } else {
         pr = Math.round(fr * luma + br * (1 - luma));
         pg = Math.round(fg * luma + bg * (1 - luma));
         pb = Math.round(fb * luma + bb * (1 - luma));
       }
-      const alpha = attenuation > 0 ? Math.max(0.08, Math.min(1, luma * attenuation + (1 - attenuation))) : 1;
+
+      let alpha;
+      if (opacities) {
+        alpha = opacities[idx];
+      } else {
+        alpha = attenuation > 0
+          ? Math.max(0.08, Math.min(1, luma * attenuation + (1 - attenuation)))
+          : 1;
+      }
       const esc = ch_ === '&' ? '&amp;' : ch_ === '<' ? '&lt;' : ch_ === '>' ? '&gt;' : ch_;
       spans.push(`<tspan fill="rgba(${pr},${pg},${pb},${alpha.toFixed(2)})">${esc}</tspan>`);
     }
@@ -862,7 +948,8 @@ export async function runPipeline(img, params) {
     vignette, grain, equalize, dither, invert, showMask, alphaThreshold, charAspect,
     colourMode, attenuation, fgHex, bgHex, fontSize, outputFont,
     multiscale, multiscaleBoost,
-    mlSaliency, mlSaliencyBoost,
+    saliencyAware, saliencyBoost,
+    randomOverlay,
   } = params;
 
   const { data: rgba, w: srcW, h: srcH } = img;
@@ -899,13 +986,28 @@ export async function runPipeline(img, params) {
   const strippedChars = chars.replace(/\s/g, '');
   const isBinaryCharset = strippedChars === '01' || strippedChars === '10';
 
-  if (mlSaliency && !showMask) {
+  if (saliencyAware && !showMask) {
     const salMap = await computeMLSaliency(sharpened, srcW, srcH, gridCols, rows);
     for (let i = 0; i < bright.length; i++) {
       const sal = salMap[i];
-      const bst = (sal - 0.45) * 2.0 * (mlSaliencyBoost || 0.5);
+      const bst = (sal - 0.45) * 2.0 * (saliencyBoost || 0.5);
       bright[i] = Math.max(0, Math.min(255, bright[i] + bst * 45));
     }
+  }
+
+  if (randomOverlay) {
+    const seed = gridCols * rows + cols;
+    const { charGrid: rGrid, opacities } = randomOverlayChars(
+      bright, gridCols, rows, chars, invert, seed
+    );
+    return {
+      charGrid: rGrid,
+      brightness: rawBright,
+      colourData: colourResized ? colourResized.data : null,
+      rows,
+      cols: gridCols,
+      opacities,
+    };
   }
   let charGrid;
 
