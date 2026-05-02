@@ -158,8 +158,10 @@ export function initControls(onChange) {
   document.getElementById('fg_hex').addEventListener('input', e => {
     state.fgHex = e.target.value; onChange(state);
   });
+  document.getElementById('bg_hex').addEventListener('input', e => {
+    state.bgHex = e.target.value; onChange(state);
+  });
 
-  bindCheckbox('saliency_aware', 'saliencyAware', 'saliency-sub');
   bindSlider('saliency_boost', 'saliencyBoost');
 
   // Advanced render modes — mutually exclusive
@@ -311,8 +313,8 @@ export function initControls(onChange) {
     document.getElementById('val-grain').textContent = DEFAULT_PARAMS.grain.toFixed(2);
     document.getElementById('multiscale_boost').value = DEFAULT_PARAMS.multiscaleBoost;
     document.getElementById('val-multiscale_boost').textContent = DEFAULT_PARAMS.multiscaleBoost.toFixed(2);
-    document.getElementById('ml_saliency_boost').value = DEFAULT_PARAMS.mlSaliencyBoost;
-    document.getElementById('val-ml_saliency_boost').textContent = DEFAULT_PARAMS.mlSaliencyBoost.toFixed(2);
+    document.getElementById('ml_saliency_boost').value = DEFAULT_PARAMS.saliencyBoost;
+    document.getElementById('val-ml_saliency_boost').textContent = DEFAULT_PARAMS.saliencyBoost.toFixed(2);
     document.getElementById('font_size').value = DEFAULT_PARAMS.fontSize;
     document.getElementById('val-font_size').textContent = DEFAULT_PARAMS.fontSize;
 

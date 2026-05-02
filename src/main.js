@@ -154,9 +154,11 @@ async function onFile(file) {
   }
 }
 
+let pendingRender = false;
+
 function scheduleRender() {
   if (!currentFile) return;
-  if (isRendering) return;
+  if (isRendering) { pendingRender = true; return; }
   clearTimeout(renderDebounce);
   renderDebounce = setTimeout(doRender, 300);
 }
@@ -183,9 +185,14 @@ async function doRender() {
   } catch (e) {
     setStatus('Error: ' + e.message, 'err');
     console.error(e);
+  } finally {
+    isRendering = false;
+    setBusy(false);
+    if (pendingRender) {
+      pendingRender = false;
+      scheduleRender();
+    }
   }
-  isRendering = false;
-  setBusy(false);
 }
 
 

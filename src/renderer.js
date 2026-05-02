@@ -44,7 +44,7 @@ export async function render(params) {
     vignette: params.vignette,
     grain: params.grain,
     attenuation: params.attenuation,
-    colourMode: theme.colour,
+    colourMode: params.colourMode !== undefined ? params.colourMode : theme.colour,
     fgHex: params.fgHex || theme.fg,
     bgHex: params.bgHex || theme.bg,
     fontSize: params.fontSize,

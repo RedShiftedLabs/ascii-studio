@@ -580,8 +580,8 @@ export function brightnessToChars(brightness, w, h, chars, invert = false, edgeM
         const pgy = new Float32Array(simW * simH);
         for (let py = 0; py < simH; py++) {
           for (let px = 0; px < simW; px++) {
-            const srcX = sx0 + Math.floor((px / simW) * (sx1 - sx0));
-            const srcY = sy0 + Math.floor((py / simH) * (sy1 - sy0));
+            const srcX = sx0 + (sx1 > sx0 ? Math.floor((px / simW) * (sx1 - sx0)) : 0);
+            const srcY = sy0 + (sy1 > sy0 ? Math.floor((py / simH) * (sy1 - sy0)) : 0);
             let val = data[srcY * srcW + srcX] / 255;
             if (invert) val = 1 - val;
             patch[py * simW + px] = isBinary ? sCurve(val) : gentleCurve(val);
@@ -593,7 +593,7 @@ export function brightnessToChars(brightness, w, h, chars, invert = false, edgeM
         }
 
         const idx = y * w + x;
-        const weight = 1.0 + (edgeMag ? edgeMag[idx] * 2.0 : 0);
+        const edgeWeight = 1.0 + (edgeMag ? edgeMag[idx] * 4.0 : 0);
 
         let bestChar = chars[0], minErr = Infinity;
         for (const r of rasters) {
@@ -602,7 +602,8 @@ export function brightnessToChars(brightness, w, h, chars, invert = false, edgeM
             const dLuma = patch[i] - r.luma[i];
             const dGx = pgx[i] - r.gx[i];
             const dGy = pgy[i] - r.gy[i];
-            err += dLuma * dLuma + (dGx * dGx + dGy * dGy) * 0.5;
+            // Bug Fix: Only weight the gradient component to force alignment on edges
+            err += dLuma * dLuma + (dGx * dGx + dGy * dGy) * 0.5 * edgeWeight;
           }
 
           if (x > 0) {
@@ -613,8 +614,8 @@ export function brightnessToChars(brightness, w, h, chars, invert = false, edgeM
             }
           }
 
-          if (err * weight < minErr) {
-            minErr = err * weight;
+          if (err < minErr) {
+            minErr = err;
             bestChar = r.char;
           }
         }
