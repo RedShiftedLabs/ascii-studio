@@ -35,6 +35,8 @@ export function rasterizeCharset(chars, simW = 8, simH = 12, outputFont = 'monos
   const key = `${chars}_${simW}_${simH}_${outputFont}`;
   if (_rasterCache.has(key)) return _rasterCache.get(key);
 
+  if (_rasterCache.size > 20) _rasterCache.clear();
+
   const canvas = new OffscreenCanvas(simW, simH);
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
   const rasterList = [];
@@ -982,9 +984,11 @@ export async function renderToPNG(svgString) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
+      const dpr = window.devicePixelRatio || 1;
       const canvas = document.createElement('canvas');
-      canvas.width = img.width; canvas.height = img.height;
+      canvas.width = img.width * dpr; canvas.height = img.height * dpr;
       const ctx = canvas.getContext('2d');
+      ctx.scale(dpr, dpr);
       ctx.drawImage(img, 0, 0);
       URL.revokeObjectURL(url);
       canvas.toBlob(b => resolve(b), 'image/png');
@@ -1004,9 +1008,12 @@ export async function renderToPDF(svgString) {
   const img = await new Promise((res, rej) => {
     const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url;
   });
+  const dpr = window.devicePixelRatio || 1;
   const canvas = document.createElement('canvas');
-  canvas.width = img.width; canvas.height = img.height;
-  canvas.getContext('2d').drawImage(img, 0, 0);
+  canvas.width = img.width * dpr; canvas.height = img.height * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.drawImage(img, 0, 0);
   URL.revokeObjectURL(url);
   const imgData = canvas.toDataURL('image/png');
   const pdf = new jsPDF({
