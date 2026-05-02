@@ -80,7 +80,6 @@ export function rasterizeCharset(chars, simW = 8, simH = 12, outputFont = 'monos
   return rasterList;
 }
 
-
 export function retinexNormalization(b, w, h) {
   const logB = new Float32Array(b.length);
   for (let i = 0; i < b.length; i++) logB[i] = Math.log(1 + b[i]);
@@ -470,7 +469,6 @@ export function sharpenImage(rgba, w, h, strength) {
   return result;
 }
 
-
 export function localContrastNormalization(b, w, h, tileSize = 16) {
   const out = new Float32Array(b.length);
   const tilesX = Math.ceil(w / tileSize);
@@ -499,7 +497,6 @@ export function localContrastNormalization(b, w, h, tileSize = 16) {
         for (let x = x0; x < x1; x++) {
           const idx = y * w + x;
 
-
           let norm = (b[idx] - avg) / (range / 2) * 128 + 128;
           out[idx] = Math.max(0, Math.min(255, norm * 0.8 + b[idx] * 0.2));
         }
@@ -508,7 +505,6 @@ export function localContrastNormalization(b, w, h, tileSize = 16) {
   }
   return out;
 }
-
 
 export function cleanupBinaryGrid(grid, w, h) {
   const getVal = (x, y) => {
@@ -535,8 +531,6 @@ export function cleanupBinaryGrid(grid, w, h) {
   }
   return newGrid;
 }
-
-
 
 export function brightnessToChars(brightness, w, h, chars, invert = false, edgeMag = null, fullResData = null) {
   const n = chars.length - 1;
@@ -612,7 +606,6 @@ export function brightnessToChars(brightness, w, h, chars, invert = false, edgeM
     return isBinary ? cleanupBinaryGrid(grid, w, h) : grid;
   }
 
-
   const grid = [];
   for (let y = 0; y < h; y++) {
     const row = [];
@@ -634,7 +627,6 @@ export function brightnessToChars(brightness, w, h, chars, invert = false, edgeM
   }
   return grid;
 }
-
 
 export const PORTRAIT_BINARY_DEFAULTS = {
   cols: 160,
@@ -788,11 +780,8 @@ function _computeGradientSaliency(rgba, srcW, srcH, cols, rows) {
   return out;
 }
 
-
-
-
 export function renderToCanvas(charGrid, brightness, colourData, opts, opacities = null) {
-  const { rows, cols, fgHex, bgHex, fontSize, attenuation, colourMode, outputFont, charset } = opts;
+  const { rows, cols, fgHex, bgHex, fontSize, attenuation, colourMode, outputFont, charset, charAspect } = opts;
   const [fr, fg, fb] = hexToRgb(fgHex);
   const [br, bg, bb] = hexToRgb(bgHex);
 
@@ -804,7 +793,7 @@ export function renderToCanvas(charGrid, brightness, colourData, opts, opacities
   const hGap = isBinary ? 1.0 : 0.3;
   const lHeight = isBinary ? 1.10 : 1.15;
 
-  const charW = fontSize * 0.601 + hGap;
+  const charW = fontSize * (charAspect || 0.6);
   const charH = fontSize * lHeight;
   const w = cols * charW;
   const h = rows * charH;
@@ -829,7 +818,6 @@ export function renderToCanvas(charGrid, brightness, colourData, opts, opacities
     ctx.letterSpacing = `${hGap}px`;
   }
 
-
   if (!colourMode && attenuation === 0 && !opacities) {
     ctx.fillStyle = fgHex;
     for (let y = 0; y < rows; y++) {
@@ -839,7 +827,6 @@ export function renderToCanvas(charGrid, brightness, colourData, opts, opacities
     }
     return canvas;
   }
-
 
   for (let y = 0; y < rows; y++) {
     for (let x = 0; x < cols; x++) {
@@ -861,7 +848,6 @@ export function renderToCanvas(charGrid, brightness, colourData, opts, opacities
         pb = Math.round(fb * luma + bb * (1 - luma));
       }
 
-
       let alpha;
       if (opacities) {
         alpha = opacities[idx];
@@ -880,7 +866,7 @@ export function renderToCanvas(charGrid, brightness, colourData, opts, opacities
 }
 
 export function renderToHTML(charGrid, brightness, colourData, opts, opacities = null) {
-  const { rows, cols, fgHex, bgHex, fontSize, attenuation, colourMode, outputFont, charset } = opts;
+  const { rows, cols, fgHex, bgHex, fontSize, attenuation, colourMode, outputFont, charset, charAspect } = opts;
   const [fr, fg, fb] = hexToRgb(fgHex);
   const [br, bg, bb] = hexToRgb(bgHex);
 
@@ -928,7 +914,7 @@ export function renderToHTML(charGrid, brightness, colourData, opts, opacities =
 }
 
 export function renderToSVG(charGrid, brightness, colourData, opts, opacities = null) {
-  const { rows, cols, fgHex, bgHex, fontSize, attenuation, colourMode, outputFont, charset } = opts;
+  const { rows, cols, fgHex, bgHex, fontSize, attenuation, colourMode, outputFont, charset, charAspect } = opts;
   const [fr, fg, fb] = hexToRgb(fgHex);
   const [br, bg, bb] = hexToRgb(bgHex);
 
@@ -939,7 +925,7 @@ export function renderToSVG(charGrid, brightness, colourData, opts, opacities = 
   const hGap = isBinary ? 1.0 : 0.3;
   const lHeight = isBinary ? 1.10 : 1.15;
 
-  const cw = fontSize * 0.601 + hGap;
+  const cw = fontSize * (charAspect || 0.6);
   const ch = fontSize * lHeight;
   const svgW = cols * cw;
   const svgH = rows * ch;
@@ -1150,8 +1136,6 @@ export async function runPipeline(img, params) {
 
     charGrid = brightnessToChars(brightForChars, gridCols, rows, chars, invert, edgeMag, fullResData);
   }
-
-
 
   if (!showMask && hasAlpha) {
     const t = (alphaThreshold || 0) * 255;
