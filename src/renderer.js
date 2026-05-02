@@ -53,12 +53,6 @@ export async function render(params) {
     multiscaleBoost: params.multiscaleBoost,
     saliencyAware: params.saliencyAware,
     saliencyBoost: params.saliencyBoost,
-    fusionV6: params.fusionV6,
-    freqAware: params.freqAware,
-    freqAwareCohThresh: params.freqAwareCohThresh,
-    freqAwareEngThresh: params.freqAwareEngThresh,
-    glyphMatch: params.glyphMatch,
-    glyphErrDiff: params.glyphErrDiff,
     randomOverlay: params.randomOverlay,
     customCharset: params.customCharset || '',
   };

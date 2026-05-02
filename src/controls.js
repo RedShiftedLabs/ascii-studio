@@ -27,12 +27,6 @@ export const DEFAULT_PARAMS = {
   outputFont: "'Courier New',Courier,monospace",
   saliencyAware: false,
   saliencyBoost: 0.60,
-  fusionV6: false,
-  freqAware: false,
-  freqAwareCohThresh: 0.25,
-  freqAwareEngThresh: 0.02,
-  glyphMatch: false,
-  glyphErrDiff: false,
   randomOverlay: false,
 };
 
@@ -166,10 +160,6 @@ export function initControls(onChange) {
 
   // Advanced render modes — mutually exclusive
   const _advancedModes = [
-    { id: 'fusion_v6',      key: 'fusionV6' },
-    { id: 'freq_aware',     key: 'freqAware', subCtrlId: 'freq-aware-sub' },
-    { id: 'glyph_match',    key: 'glyphMatch' },
-    { id: 'glyph_err_diff', key: 'glyphErrDiff' },
     { id: 'random_overlay', key: 'randomOverlay' },
     { id: 'saliency_aware', key: 'saliencyAware', subCtrlId: 'saliency-sub' },
   ];
@@ -200,8 +190,6 @@ export function initControls(onChange) {
     });
   });
 
-  bindSlider('freq_aware_coh_thresh', 'freqAwareCohThresh');
-  bindSlider('freq_aware_eng_thresh', 'freqAwareEngThresh');
 
   bindSlider('font_size', 'fontSize', v => v);
   const fontSelect = document.getElementById('output_font');
