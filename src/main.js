@@ -35,7 +35,7 @@ function _updateMLBadge() {
 _updateMLBadge();
 
 let currentFile = null;
-let params = { ...DEFAULT_PARAMS };
+let params;
 let renderDebounce = null;
 let isRendering = false;
 
@@ -60,7 +60,7 @@ const toastEl = document.getElementById('toast');
 const toastMsg = document.getElementById('toast-msg');
 
 params = initControls((newParams) => {
-  Object.assign(params, newParams);
+  params = newParams;
   scheduleRender();
 });
 

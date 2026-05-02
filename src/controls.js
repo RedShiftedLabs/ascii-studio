@@ -162,7 +162,7 @@ export function initControls(onChange) {
     state.bgHex = e.target.value; onChange(state);
   });
 
-  bindSlider('saliency_boost', 'saliencyBoost');
+  bindSlider('ml_saliency_boost', 'saliencyBoost');
 
   // Advanced render modes — mutually exclusive
   const _advancedModes = [

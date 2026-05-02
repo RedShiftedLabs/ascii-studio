@@ -117,8 +117,8 @@ export function retinexNormalization(b, w, h) {
   const out = new Float32Array(b.length);
   for (let i = 0; i < b.length; i++) {
     const reflectance = logB[i] - blurred[i];
-    // Map log-reflectance back to 0-255 range with centered exposure
-    out[i] = Math.max(0, Math.min(255, (reflectance + 2) * 64));
+    // Centered at 128, preserves blacks, lifts shadow detail symmetrically
+    out[i] = Math.max(0, Math.min(255, reflectance * 64 + 128));
   }
   return out;
 }
@@ -550,9 +550,6 @@ export function cleanupBinaryGrid(grid, w, h) {
 }
 
 
-function cellOffset(x, y) {
-  return ((x * 6 + y * 11) >>> 0) % 7;
-}
 
 export function brightnessToChars(brightness, w, h, chars, invert = false, edgeMag = null, fullResData = null) {
   const n = chars.length - 1;
@@ -595,7 +592,7 @@ export function brightnessToChars(brightness, w, h, chars, invert = false, edgeM
         }
 
         const idx = y * w + x;
-        const edgeWeight = 1.0 + (edgeMag ? edgeMag[idx] * 4.0 : 0);
+        const patchWeight = 1.0 + (edgeMag ? edgeMag[idx] * 4.0 : 0);
 
         let bestChar = chars[0], minErr = Infinity;
         for (const r of rasters) {
@@ -605,7 +602,7 @@ export function brightnessToChars(brightness, w, h, chars, invert = false, edgeM
             const dGx = pgx[i] - r.gx[i];
             const dGy = pgy[i] - r.gy[i];
             // Bug Fix: Only weight the gradient component to force alignment on edges
-            err += dLuma * dLuma + (dGx * dGx + dGy * dGy) * 0.5 * edgeWeight;
+            err += dLuma * dLuma + (dGx * dGx + dGy * dGy) * 0.5 * patchWeight;
           }
 
           if (x > 0) {
@@ -1109,7 +1106,7 @@ export async function runPipeline(img, params) {
   }
 
   if (randomOverlay) {
-    const seed = gridCols * rows + cols;
+    const seed = gridCols * rows + srcW * 31 + srcH * 17;
     const { charGrid: rGrid, opacities } = randomOverlayChars(
       bright, gridCols, rows, chars, invert, seed
     );
@@ -1139,10 +1136,10 @@ export async function runPipeline(img, params) {
     // Pass Sobel magnitude and full-res data for patch matching
     let edgeMag = null;
     let fullResData = null;
-
+    
     // Stage 1: Pre-processing (Retinex / Local Normalization)
     const processedBright = retinexNormalization(bright, gridCols, rows);
-
+    
     const { gx, gy } = sobel(processedBright, gridCols, rows);
     edgeMag = new Float32Array(gridCols * rows);
     let maxM = 0;
@@ -1151,7 +1148,7 @@ export async function runPipeline(img, params) {
       if (edgeMag[i] > maxM) maxM = edgeMag[i];
     }
     if (maxM > 0) for (let i = 0; i < edgeMag.length; i++) edgeMag[i] /= maxM;
-
+    
     // Level 4: Enable patch matching for high-quality charsets
     if (isBinaryCharset || charset === 'full' || charset === 'lineart' || charset === 'edges') {
       fullResData = {
@@ -1161,7 +1158,13 @@ export async function runPipeline(img, params) {
       };
     }
 
-    charGrid = brightnessToChars(processedBright, gridCols, rows, chars, invert, edgeMag, fullResData);
+    // Bug Fix: Apply dither to processedBright before patch matching (fallback path only)
+    let brightForChars = processedBright;
+    if (dither && !fullResData && !isBinaryCharset) {
+      brightForChars = floydSteinberg(processedBright, gridCols, rows, chars.length);
+    }
+
+    charGrid = brightnessToChars(brightForChars, gridCols, rows, chars, invert, edgeMag, fullResData);
   }
 
 
