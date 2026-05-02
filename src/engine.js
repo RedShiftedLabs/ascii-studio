@@ -1040,7 +1040,7 @@ export async function runPipeline(img, params) {
     colourMode, attenuation, fgHex, bgHex, fontSize, outputFont,
     multiscale, multiscaleBoost,
     saliencyAware, saliencyBoost,
-    randomOverlay,
+    randomOverlay, bgTransparent,
   } = params;
 
   const { data: rgba, w: srcW, h: srcH } = img;

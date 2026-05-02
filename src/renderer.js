@@ -47,6 +47,7 @@ export async function render(params) {
     colourMode: params.colourMode !== undefined ? params.colourMode : theme.colour,
     fgHex: params.fgHex || theme.fg,
     bgHex: params.bgHex || theme.bg,
+    bgTransparent: params.bgTransparent,
     fontSize: params.fontSize,
     outputFont: params.outputFont,
     multiscale: params.multiscale,
