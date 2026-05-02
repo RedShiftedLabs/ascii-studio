@@ -83,7 +83,7 @@
   border-radius: 2px;
 }
 
-/* ── Mobile Layout ── */
+ 
 @media (max-width: 800px) {
   #sidebar {
     width: 100%;

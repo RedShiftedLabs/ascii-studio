@@ -140,7 +140,7 @@
   width: 100%;
 }
 
-/* ── Mobile Layout ── */
+ 
 @media (max-width: 800px) {
   #preview-wrap {
     padding: 10px;

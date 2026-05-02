@@ -80,19 +80,15 @@ export function rasterizeCharset(chars, simW = 8, simH = 12, outputFont = 'monos
   return rasterList;
 }
 
-/**
- * Stage 1: Retinex-inspired Tone Mapping
- */
+
 export function retinexNormalization(b, w, h) {
   const logB = new Float32Array(b.length);
   for (let i = 0; i < b.length; i++) logB[i] = Math.log(1 + b[i]);
 
-  // Separable horizontal + vertical box blur (O(w*h) performance)
   const radius = 8;
   const blurred = new Float32Array(b.length);
   const temp = new Float32Array(b.length);
 
-  // Horizontal pass
   for (let y = 0; y < h; y++) {
     let sum = 0, count = 0;
     for (let x = 0; x < Math.min(radius - 1, w); x++) { sum += logB[y * w + x]; count++; }
@@ -103,7 +99,6 @@ export function retinexNormalization(b, w, h) {
     }
   }
 
-  // Vertical pass
   for (let x = 0; x < w; x++) {
     let sum = 0, count = 0;
     for (let y = 0; y < Math.min(radius - 1, h); y++) { sum += temp[y * w + x]; count++; }
@@ -117,7 +112,7 @@ export function retinexNormalization(b, w, h) {
   const out = new Float32Array(b.length);
   for (let i = 0; i < b.length; i++) {
     const reflectance = logB[i] - blurred[i];
-    // Centered at 128, preserves blacks, lifts shadow detail symmetrically
+
     out[i] = Math.max(0, Math.min(255, reflectance * 64 + 128));
   }
   return out;
@@ -475,11 +470,7 @@ export function sharpenImage(rgba, w, h, strength) {
   return result;
 }
 
-/**
- * Aggressive Local Contrast Normalization (ALCN)
- * Prevents shadows from crushing and highlights from blowing out by 
- * normalizing pixel values relative to their 16x16 local neighborhood.
- */
+
 export function localContrastNormalization(b, w, h, tileSize = 16) {
   const out = new Float32Array(b.length);
   const tilesX = Math.ceil(w / tileSize);
@@ -507,8 +498,8 @@ export function localContrastNormalization(b, w, h, tileSize = 16) {
       for (let y = y0; y < y1; y++) {
         for (let x = x0; x < x1; x++) {
           const idx = y * w + x;
-          // Normalize relative to local range, then shift by mean to prevent 
-          // dark flat tiles from blowing out.
+
+
           let norm = (b[idx] - avg) / (range / 2) * 128 + 128;
           out[idx] = Math.max(0, Math.min(255, norm * 0.8 + b[idx] * 0.2));
         }
@@ -518,11 +509,7 @@ export function localContrastNormalization(b, w, h, tileSize = 16) {
   return out;
 }
 
-/**
- * Binary Post-Process Cleanup
- * Removes isolated "speckles" (1 surrounded by 0s) and 
- * fills "holes" (0 surrounded by 1s) to improve grouping.
- */
+
 export function cleanupBinaryGrid(grid, w, h) {
   const getVal = (x, y) => {
     if (x < 0 || x >= w || y < 0 || y >= h) return 0;
@@ -601,7 +588,7 @@ export function brightnessToChars(brightness, w, h, chars, invert = false, edgeM
             const dLuma = patch[i] - r.luma[i];
             const dGx = pgx[i] - r.gx[i];
             const dGy = pgy[i] - r.gy[i];
-            // Bug Fix: Only weight the gradient component to force alignment on edges
+
             err += dLuma * dLuma + (dGx * dGx + dGy * dGy) * 0.5 * patchWeight;
           }
 
@@ -625,7 +612,7 @@ export function brightnessToChars(brightness, w, h, chars, invert = false, edgeM
     return isBinary ? cleanupBinaryGrid(grid, w, h) : grid;
   }
 
-  // Fallback: density mapping
+
   const grid = [];
   for (let y = 0; y < h; y++) {
     const row = [];
@@ -842,7 +829,7 @@ export function renderToCanvas(charGrid, brightness, colourData, opts, opacities
     ctx.letterSpacing = `${hGap}px`;
   }
 
-  // Fast monochrome path — only when no per-cell opacity needed
+
   if (!colourMode && attenuation === 0 && !opacities) {
     ctx.fillStyle = fgHex;
     for (let y = 0; y < rows; y++) {
@@ -853,7 +840,7 @@ export function renderToCanvas(charGrid, brightness, colourData, opts, opacities
     return canvas;
   }
 
-  // Per-cell path
+
   for (let y = 0; y < rows; y++) {
     for (let x = 0; x < cols; x++) {
       const ch = charGrid[y][x];
@@ -874,7 +861,7 @@ export function renderToCanvas(charGrid, brightness, colourData, opts, opacities
         pb = Math.round(fb * luma + bb * (1 - luma));
       }
 
-      // opacities array takes priority over attenuation
+
       let alpha;
       if (opacities) {
         alpha = opacities[idx];
@@ -1134,13 +1121,11 @@ export async function runPipeline(img, params) {
       charGrid.push(row);
     }
   } else {
-    // Pass Sobel magnitude and full-res data for patch matching
     let edgeMag = null;
     let fullResData = null;
-    
-    // Stage 1: Pre-processing (Retinex / Local Normalization)
+
     const processedBright = retinexNormalization(bright, gridCols, rows);
-    
+
     const { gx, gy } = sobel(processedBright, gridCols, rows);
     edgeMag = new Float32Array(gridCols * rows);
     let maxM = 0;
@@ -1149,8 +1134,7 @@ export async function runPipeline(img, params) {
       if (edgeMag[i] > maxM) maxM = edgeMag[i];
     }
     if (maxM > 0) for (let i = 0; i < edgeMag.length; i++) edgeMag[i] /= maxM;
-    
-    // Level 4: Enable patch matching for high-quality charsets
+
     if (isBinaryCharset || charset === 'full' || charset === 'lineart' || charset === 'edges') {
       fullResData = {
         data: computeBrightness(sharpened, srcW, srcH),
@@ -1159,7 +1143,6 @@ export async function runPipeline(img, params) {
       };
     }
 
-    // Bug Fix: Apply dither to processedBright before patch matching (fallback path only)
     let brightForChars = processedBright;
     if (dither && !fullResData && !isBinaryCharset) {
       brightForChars = floydSteinberg(processedBright, gridCols, rows, chars.length);

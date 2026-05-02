@@ -158,7 +158,7 @@ export function initControls(onChange) {
 
   bindSlider('ml_saliency_boost', 'saliencyBoost');
 
-  // Advanced render modes — mutually exclusive
+   
   const _advancedModes = [
     { id: 'random_overlay', key: 'randomOverlay' },
     { id: 'saliency_aware', key: 'saliencyAware', subCtrlId: 'saliency-sub' },
