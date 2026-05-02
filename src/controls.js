@@ -258,14 +258,14 @@ export function initControls(onChange) {
       if (!preset) return;
       Object.assign(state, preset);
 
-      ['contrast', 'gamma', 'exposure', 'edgeWeight', 'sharpen', 'cols', 'charAspect', 'fontSize', 'attenuation', 'vignette', 'grain', 'mlSaliencyBoost'].forEach(k => {
+      ['contrast', 'gamma', 'exposure', 'edgeWeight', 'sharpen', 'cols', 'charAspect', 'fontSize', 'attenuation', 'vignette', 'grain', 'saliencyBoost'].forEach(k => {
         if (preset[k] === undefined) return;
-        const domId = k === 'edgeWeight' ? 'edge_weight' : k === 'mlSaliencyBoost' ? 'ml_saliency_boost' : k === 'charAspect' ? 'char_aspect' : k === 'fontSize' ? 'font_size' : k;
+        const domId = k === 'edgeWeight' ? 'edge_weight' : k === 'saliencyBoost' ? 'ml_saliency_boost' : k === 'charAspect' ? 'char_aspect' : k === 'fontSize' ? 'font_size' : k;
         const el = document.getElementById(domId);
         if (el) {
           el.value = preset[k];
           const lbl = document.getElementById(`val-${domId}`);
-          if (lbl) lbl.textContent = k === 'fontSize' ? preset[k] : preset[k].toFixed(2);
+          if (lbl) lbl.textContent = (k === 'fontSize' || k === 'cols') ? preset[k] : preset[k].toFixed(2);
         }
       });
 
@@ -292,7 +292,7 @@ export function initControls(onChange) {
     document.getElementById('cols').value = DEFAULT_PARAMS.cols;
     document.getElementById('val-cols').textContent = DEFAULT_PARAMS.cols;
     document.getElementById('char_aspect').value = DEFAULT_PARAMS.charAspect;
-    document.getElementById('val-char_aspect').textContent = DEFAULT_PARAMS.charAspect;
+    document.getElementById('val-char_aspect').textContent = DEFAULT_PARAMS.charAspect.toFixed(2);
     document.getElementById('sharpen').value = DEFAULT_PARAMS.sharpen;
     document.getElementById('val-sharpen').textContent = DEFAULT_PARAMS.sharpen.toFixed(2);
     document.getElementById('contrast').value = DEFAULT_PARAMS.contrast;

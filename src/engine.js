@@ -95,7 +95,7 @@ export function retinexNormalization(b, w, h) {
   // Horizontal pass
   for (let y = 0; y < h; y++) {
     let sum = 0, count = 0;
-    for (let x = 0; x < Math.min(radius, w); x++) { sum += logB[y * w + x]; count++; }
+    for (let x = 0; x < Math.min(radius - 1, w); x++) { sum += logB[y * w + x]; count++; }
     for (let x = 0; x < w; x++) {
       if (x + radius < w) { sum += logB[y * w + x + radius]; count++; }
       if (x - radius - 1 >= 0) { sum -= logB[y * w + x - radius - 1]; count--; }
@@ -106,7 +106,7 @@ export function retinexNormalization(b, w, h) {
   // Vertical pass
   for (let x = 0; x < w; x++) {
     let sum = 0, count = 0;
-    for (let y = 0; y < Math.min(radius, h); y++) { sum += temp[y * w + x]; count++; }
+    for (let y = 0; y < Math.min(radius - 1, h); y++) { sum += temp[y * w + x]; count++; }
     for (let y = 0; y < h; y++) {
       if (y + radius < h) { sum += temp[(y + radius) * w + x]; count++; }
       if (y - radius - 1 >= 0) { sum -= temp[(y - radius - 1) * w + x]; count--; }
@@ -507,8 +507,10 @@ export function localContrastNormalization(b, w, h, tileSize = 16) {
       for (let y = y0; y < y1; y++) {
         for (let x = x0; x < x1; x++) {
           const idx = y * w + x;
-          let norm = (b[idx] - min) / range * 255;
-          out[idx] = norm * 0.8 + b[idx] * 0.2;
+          // Normalize relative to local range, then shift by mean to prevent 
+          // dark flat tiles from blowing out.
+          let norm = (b[idx] - avg) / (range / 2) * 128 + 128;
+          out[idx] = Math.max(0, Math.min(255, norm * 0.8 + b[idx] * 0.2));
         }
       }
     }
@@ -580,8 +582,8 @@ export function brightnessToChars(brightness, w, h, chars, invert = false, edgeM
         const pgy = new Float32Array(simW * simH);
         for (let py = 0; py < simH; py++) {
           for (let px = 0; px < simW; px++) {
-            const srcX = sx0 + (sx1 > sx0 ? Math.floor((px / simW) * (sx1 - sx0)) : 0);
-            const srcY = sy0 + (sy1 > sy0 ? Math.floor((py / simH) * (sy1 - sy0)) : 0);
+            const srcX = Math.min(srcW - 1, sx0 + (sx1 > sx0 ? Math.floor((px / simW) * (sx1 - sx0)) : 0));
+            const srcY = Math.min(srcH - 1, sy0 + (sy1 > sy0 ? Math.floor((py / simH) * (sy1 - sy0)) : 0));
             let val = data[srcY * srcW + srcX] / 255;
             if (invert) val = 1 - val;
             patch[py * simW + px] = isBinary ? sCurve(val) : gentleCurve(val);
