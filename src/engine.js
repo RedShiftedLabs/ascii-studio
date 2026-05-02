@@ -642,22 +642,7 @@ function _computeGradientSaliency(rgba, srcW, srcH, cols, rows) {
 }
 
 
-export function applyMLSaliencyToChars(charGrid, salMap, cols, rows, chars, boost = 0.6) {
-  const n = chars.length - 1;
-  const newGrid = charGrid.map(r => [...r]);
-  for (let y = 0; y < rows; y++) {
-    for (let x = 0; x < cols; x++) {
-      const sal = salMap[y * cols + x]; 
-      const currentChar = charGrid[y][x];
-      const currentIdx = chars.indexOf(currentChar);
-      if (currentIdx < 0) continue;
-      const shift = Math.round((sal - 0.5) * 2 * boost * (n * 0.15));
-      const newIdx = Math.max(0, Math.min(n, currentIdx + shift));
-      newGrid[y][x] = chars[newIdx];
-    }
-  }
-  return newGrid;
-}
+
 
 export function renderToCanvas(charGrid, brightness, colourData, opts) {
   const { rows, cols, fgHex, bgHex, fontSize, attenuation, colourMode, outputFont, charset } = opts;
@@ -914,6 +899,14 @@ export async function runPipeline(img, params) {
   const strippedChars = chars.replace(/\s/g, '');
   const isBinaryCharset = strippedChars === '01' || strippedChars === '10';
 
+  if (mlSaliency && !showMask) {
+    const salMap = await computeMLSaliency(sharpened, srcW, srcH, gridCols, rows);
+    for (let i = 0; i < bright.length; i++) {
+      const sal = salMap[i];
+      const bst = (sal - 0.45) * 2.0 * (mlSaliencyBoost || 0.5);
+      bright[i] = Math.max(0, Math.min(255, bright[i] + bst * 45));
+    }
+  }
   let charGrid;
 
   if (showMask) {
@@ -933,10 +926,7 @@ export async function runPipeline(img, params) {
     charGrid = brightnessToChars(processedBright, gridCols, rows, chars, invert);
   }
 
-  if (mlSaliency && !showMask) {
-    const salMap = await computeMLSaliency(sharpened, srcW, srcH, gridCols, rows);
-    charGrid = applyMLSaliencyToChars(charGrid, salMap, gridCols, rows, chars, mlSaliencyBoost);
-  }
+
 
   if (!showMask && hasAlpha) {
     const t = (alphaThreshold || 0) * 255;
