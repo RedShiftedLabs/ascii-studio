@@ -4,7 +4,7 @@ export const RAW_CHARSETS = {
   blocks: ' ░▒▓█',
   dots: ' ·∘○◉●',
   hatching: ' ─━═╬+#@',
-  geometric: ' ▪▫◆◇■□▲△●',
+  geometric: ' ○●◐◑◒◓◔◕◖◗◘◙□■▢▣▤▥▦▧▨▩◇◆◊◈△▲▽▼◁◀▷▶◂◃▸▹◯◉◎',
   braille: ' ⠁⠂⠃⠄⠅⠆⠇⠈⠉⠊⠋⠌⠍⠎⠏⠐⠑⠒⠓⠔⠕⠖⠗⠘⠙⠚⠛⠜⠝⠞⠟⠠⠡⠢⠣⠤⠥⠦⠧⠨⠩⠪⠫⠬⠭⠮⠯⠰⠱⠲⠳⠴⠵⠶⠷⠸⠹⠺⠻⠼⠽⠾⠿',
   lineart: ' .,:;i|/\\()[]{}tfjl!-_+=xXYZO0#%@',
   edges: ' .-+|/\\xX#@',
@@ -13,8 +13,15 @@ export const RAW_CHARSETS = {
   scanlines: ' ─━═╌╍║│├┤┬┴┼╫╪',
   circuit: ' .·+×╋┼├┤╠╣╦╩╬○●◎',
   japanese: ' ｦｧｨｩｪｫｬｭｮｯｰｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ',
-  math: ' ·∘∙○◦+×÷=≠≈∞∑∏∫∂√∇∆',
+  math: ' +-×÷=≠≈≤≥±∞αβγδεθλμπσφωΑΒΓΔΕΘΛΠΣΦΩ∑∏√∫∆∇∂∅∈∉∋∌∧∨∩∪∴∵∼∽≅≃≄≆⊂⊃⊆⊇⊊⊋⊕⊗⊙⊖',
   shadows: ' ░▒▓█▉▊▋▌▍▎▏',
+  box_drawing: ' ─│┌┐└┘├┤┬┴┼═║╔╗╚╝╠╣╦╩╬━┃┏┓┗┛┣┫┳┻╋╭╮╰╯╱╲╳╴╵╶╷',
+  block_elements: ' █▇▆▅▄▃▂▁▀▓▒░▔▕▖▗▘▙▚▛▜▝▞▟▌▍▎▏▐▉▊▋',
+  stars: ' ☆★✩✪✫✬✭✮✯✰✱✲✳✴✵✶✷✸✹✺✻✼✽✾✿❀❁❂❃❄❅❆❇❈❉❊❋',
+  arrows: ' ←↑→↓↔↕↖↗↘↙⇐⇑⇒⇓⇔⇕⇖⇗⇘⇙⇦⇧⇨⇩➔➘➙➚➛➜➝➞➟➠➡➢➣➤➥➦➧➨➩➪➫➬➭➮➯➱',
+  cards: ' ♠♣♥♦♤♧♡♢🂡🂢🂣🂤🂥🂦🂧🂨🂩🂪🂫🂭🂮',
+  misc: ' ☺☻•◦‣⁃⁌⁍·⋅☀☁☂☃☄☎☏☐☑☒☓☖☗☘☙☚☛☜☞☟☠☡☢☣☤☥☦☧☨☩☪☫☬☭☮☯☰☱☲☳☴☵☶☷☸☹☼☽☾☿♀♂♁⚢⚣⚤⚥⚦⚧⚨⚩⚬⚭⚮⚯⚰⚱⚲⚳⚴⚵⚶⚷⚸⚹⚺⚻⚼⚿⛀⛁⛂⛃⛆⛇⛈⛉⛊⛋⛌⛍⛏⛐⛑⛒⛓⛕⛖⛗⛘⛙⛚⛛⛜⛝⛞⛟⛠⛡⛢⛣⛤⛥⛦⛧⛨⛩⛫⛬⛭⛮⛯⛰⛱⛴⛶⛷⛸⛻⛼⛾⛿',
+  common: ' 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
 };
 
 export const THEMES = {
@@ -469,43 +476,6 @@ export function sharpenImage(rgba, w, h, strength) {
     result.data[i + 3] = orig[i + 3];
   }
   return result;
-}
-
-export function localContrastNormalization(b, w, h, tileSize = 16) {
-  const out = new Float32Array(b.length);
-  const tilesX = Math.ceil(w / tileSize);
-  const tilesY = Math.ceil(h / tileSize);
-
-  for (let ty = 0; ty < tilesY; ty++) {
-    for (let tx = 0; tx < tilesX; tx++) {
-      const x0 = tx * tileSize, y0 = ty * tileSize;
-      const x1 = Math.min(x0 + tileSize, w), y1 = Math.min(y0 + tileSize, h);
-
-      let min = 255, max = 0, sum = 0, count = 0;
-      for (let y = y0; y < y1; y++) {
-        for (let x = x0; x < x1; x++) {
-          const v = b[y * w + x];
-          if (v < min) min = v;
-          if (v > max) max = v;
-          sum += v;
-          count++;
-        }
-      }
-
-      const avg = sum / count;
-      const range = Math.max(max - min, 20);
-
-      for (let y = y0; y < y1; y++) {
-        for (let x = x0; x < x1; x++) {
-          const idx = y * w + x;
-
-          let norm = (b[idx] - avg) / (range / 2) * 128 + 128;
-          out[idx] = Math.max(0, Math.min(255, norm * 0.8 + b[idx] * 0.2));
-        }
-      }
-    }
-  }
-  return out;
 }
 
 export function cleanupBinaryGrid(grid, w, h) {
@@ -1037,7 +1007,7 @@ export async function runPipeline(img, params) {
   const {
     cols, charset, contrast, gamma, exposure, edgeWeight, sharpen,
     vignette, grain, equalize, dither, invert, showMask, alphaThreshold, charAspect,
-    colourMode, attenuation, fgHex, bgHex, fontSize, outputFont,
+    colourMode, attenuation,
     multiscale, multiscaleBoost,
     saliencyAware, saliencyBoost,
     randomOverlay, bgTransparent,
@@ -1127,6 +1097,15 @@ export async function runPipeline(img, params) {
       if (edgeMag[i] > maxM) maxM = edgeMag[i];
     }
     if (maxM > 0) for (let i = 0; i < edgeMag.length; i++) edgeMag[i] /= maxM;
+    if (multiscale) {
+      for (let i = 0; i < bright.length; i++) {
+        const edge = edgeMag[i];
+        if (edge > 0.4) {
+          const boost = 1.0 + (multiscaleBoost - 1.0) * edge;
+          bright[i] = Math.max(0, Math.min(255, (bright[i] - 128) * boost + 128));
+        }
+      }
+    }
 
     if (isBinaryCharset || charset === 'full' || charset === 'lineart' || charset === 'edges') {
       fullResData = {
@@ -1139,6 +1118,11 @@ export async function runPipeline(img, params) {
     let brightForChars = processedBright;
     if (dither && !fullResData && !isBinaryCharset) {
       brightForChars = floydSteinberg(processedBright, gridCols, rows, chars.length);
+    }
+    if (attenuation > 0) {
+      for (let i = 0; i < brightForChars.length; i++) {
+        brightForChars[i] = Math.max(0, Math.min(255, brightForChars[i] * (1 - attenuation * 0.5)));
+      }
     }
 
     charGrid = brightnessToChars(brightForChars, gridCols, rows, chars, invert, edgeMag, fullResData);

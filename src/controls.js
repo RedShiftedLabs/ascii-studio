@@ -1,4 +1,4 @@
-import { THEMES, PORTRAIT_BINARY_DEFAULTS } from './engine.js';
+import { THEMES, PORTRAIT_BINARY_DEFAULTS, RAW_CHARSETS } from './engine.js';
 
 export const DEFAULT_PARAMS = {
   cols: 120,
