@@ -20,21 +20,26 @@
   left: 0;
   width: 2px;
   height: 100%;
-  background: linear-gradient(
-    180deg,
-    var(--accent) 0%,
-    var(--teal) 35%,
-    var(--pink) 65%,
-    var(--purple) 100%
-  );
+  background: linear-gradient(180deg,
+      var(--accent) 0%,
+      var(--teal) 35%,
+      var(--pink) 65%,
+      var(--purple) 100%);
   opacity: 0.5;
   background-size: 100% 200%;
   animation: gradientShift 8s ease-in-out infinite alternate;
 }
 
 @keyframes gradientShift {
-  0%   { background-position: 0% 0%; opacity: 0.4; }
-  100% { background-position: 0% 100%; opacity: 0.7; }
+  0% {
+    background-position: 0% 0%;
+    opacity: 0.4;
+  }
+
+  100% {
+    background-position: 0% 100%;
+    opacity: 0.7;
+  }
 }
 
 /* ── Sidebar header ───────────────── */
@@ -124,5 +129,3 @@
 #controls-scroll::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.14);
 }
-
-/* Mobile styles → mobile.css */
