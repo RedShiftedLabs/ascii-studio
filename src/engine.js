@@ -763,7 +763,8 @@ export function renderToCanvas(charGrid, brightness, colourData, opts, opacities
   const hGap = opts.horizontalGap !== undefined ? opts.horizontalGap : (isBinary ? 1.0 : 0.3);
   const lHeight = opts.verticalGap !== undefined ? opts.verticalGap : (isBinary ? 1.10 : 1.15);
 
-  const charW = fontSize * (charAspect || 0.6);
+  const baseCharW = fontSize * (charAspect || 0.6);
+  const charW = baseCharW + hGap;
   const charH = fontSize * lHeight;
   const w = cols * charW;
   const h = rows * charH;
@@ -784,18 +785,14 @@ export function renderToCanvas(charGrid, brightness, colourData, opts, opacities
   ctx.font = `${fontSize}px ${outputFont}`;
   ctx.textBaseline = 'top';
 
-  if (isBinary && 'letterSpacing' in ctx) {
-    ctx.letterSpacing = '1px';
-  } else if ('letterSpacing' in ctx) {
-    ctx.letterSpacing = `${hGap}px`;
-  }
-
   if (!colourMode && attenuation === 0 && !opacities) {
     ctx.fillStyle = fgHex;
     for (let y = 0; y < rows; y++) {
-      const rowStr = charGrid[y].join('');
-      if (!rowStr.trim()) continue;
-      ctx.fillText(rowStr, 0, y * charH);
+      for (let x = 0; x < cols; x++) {
+        const ch = charGrid[y][x];
+        if (ch === ' ') continue;
+        ctx.fillText(ch, x * charW, y * charH);
+      }
     }
     return canvas;
   }
@@ -897,7 +894,8 @@ export function renderToSVG(charGrid, brightness, colourData, opts, opacities = 
   const hGap = opts.horizontalGap !== undefined ? opts.horizontalGap : (isBinary ? 1.0 : 0.3);
   const lHeight = opts.verticalGap !== undefined ? opts.verticalGap : (isBinary ? 1.10 : 1.15);
 
-  const cw = fontSize * (charAspect || 0.6);
+  const baseCw = fontSize * (charAspect || 0.6);
+  const cw = baseCw + hGap;
   const ch = fontSize * lHeight;
   const svgW = cols * cw;
   const svgH = rows * ch;
