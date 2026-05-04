@@ -698,72 +698,193 @@ async function _computeNeuralSaliency(rgba, srcW, srcH, cols, rows) {
     return tf.tensor4d(pixels, [1, INPUT_SIZE, INPUT_SIZE, 3]);
   });
 
-  let salMap;
+  let salMap = null;
   try {
     const internalModel = _mlSaliencyModel.model;
-    let targetLayer = null;
+
+    /* ── Multi-scale feature extraction ──
+       Pick an early, mid, and late layer to combine coarse semantic
+       understanding with fine spatial detail. */
+    const candidates = [];
     for (const layer of internalModel.layers) {
-      const outShape = layer.outputShape;
-      if (Array.isArray(outShape) && outShape.length === 4 &&
-        outShape[1] > 1 && outShape[2] > 1 && outShape[3] >= 32) {
-        targetLayer = layer;
+      const s = layer.outputShape;
+      if (Array.isArray(s) && s.length === 4 && s[1] > 1 && s[2] > 1 && s[3] >= 16) {
+        candidates.push({ layer, spatialH: s[1], spatialW: s[2], channels: s[3] });
       }
     }
 
-    if (targetLayer) {
+    // Sort by spatial resolution (largest first)
+    candidates.sort((a, b) => (b.spatialH * b.spatialW) - (a.spatialH * a.spatialW));
+
+    // Pick 3 layers: early (high-res), mid, and late (low-res, semantic)
+    const picks = [];
+    if (candidates.length >= 3) {
+      picks.push(candidates[0]);                                    // early — fine detail
+      picks.push(candidates[Math.floor(candidates.length / 2)]);    // mid
+      picks.push(candidates[candidates.length - 1]);                // late — semantic
+    } else {
+      picks.push(...candidates.slice(0, candidates.length));
+    }
+
+    if (picks.length > 0) {
       const featureModel = tf.model({
         inputs: internalModel.inputs,
-        outputs: targetLayer.output,
+        outputs: picks.map(p => p.layer.output),
       });
-      const features = featureModel.predict(inputTensor);
-      const averaged = tf.mean(features, 3);
-      const squeezed = averaged.squeeze([0]);
-      const relu = tf.relu(squeezed);
-      const minV = relu.min();
-      const maxV = relu.max();
-      const normalised = relu.sub(minV).div(maxV.sub(minV).add(1e-8));
-      salMap = await normalised.array();
-      tf.dispose([features, averaged, squeezed, relu, normalised, minV, maxV, featureModel]);
+      const featureOutputs = featureModel.predict(inputTensor);
+      const featureList = Array.isArray(featureOutputs) ? featureOutputs : [featureOutputs];
+
+      // Combine all layers into a single saliency map at the target resolution
+      const combined = new Float32Array(cols * rows);
+      // Weight: semantic layers get more weight, spatial layers add detail
+      const weights = featureList.length === 3 ? [0.2, 0.35, 0.45] : featureList.length === 2 ? [0.35, 0.65] : [1.0];
+
+      for (let fi = 0; fi < featureList.length; fi++) {
+        const feat = featureList[fi];
+        // Channel-wise activation: take the L2 norm across channels for richer saliency
+        const l2 = tf.tidy(() => {
+          const sq = feat.square();
+          const summed = sq.sum(3);       // [1, H, W]
+          const sqrtMap = summed.sqrt();
+          return sqrtMap.squeeze([0]);     // [H, W]
+        });
+        const mapData = await l2.array();
+        tf.dispose(l2);
+
+        const fH = mapData.length, fW = mapData[0].length;
+
+        // Normalize this layer's map to [0,1]
+        let fMin = Infinity, fMax = -Infinity;
+        for (let y = 0; y < fH; y++) for (let x = 0; x < fW; x++) {
+          if (mapData[y][x] < fMin) fMin = mapData[y][x];
+          if (mapData[y][x] > fMax) fMax = mapData[y][x];
+        }
+        const fRange = fMax - fMin || 1;
+
+        // Bilinear interpolation to target grid + accumulate
+        const w = weights[fi];
+        for (let y = 0; y < rows; y++) {
+          for (let x = 0; x < cols; x++) {
+            const fy = Math.max(0, (y / Math.max(1, rows - 1)) * (fH - 1));
+            const fx = Math.max(0, (x / Math.max(1, cols - 1)) * (fW - 1));
+            const y0 = Math.floor(fy), y1 = Math.min(fH - 1, y0 + 1);
+            const x0 = Math.floor(fx), x1 = Math.min(fW - 1, x0 + 1);
+            const wy = fy - y0, wx = fx - x0;
+            const raw =
+              mapData[y0][x0] * (1 - wx) * (1 - wy) +
+              mapData[y0][x1] * wx * (1 - wy) +
+              mapData[y1][x0] * (1 - wx) * wy +
+              mapData[y1][x1] * wx * wy;
+            combined[y * cols + x] += ((raw - fMin) / fRange) * w;
+          }
+        }
+      }
+
+      tf.dispose(featureList);
+      tf.dispose(featureModel);
+
+      // Apply center-prior: slightly bias saliency towards center of image
+      const cx = cols / 2, cy = rows / 2;
+      const maxDist = Math.sqrt(cx * cx + cy * cy);
+      for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < cols; x++) {
+          const dx = (x - cx) / cx, dy = (y - cy) / cy;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          const centerWeight = 1.0 - dist * 0.25;  // mild center bias
+          combined[y * cols + x] *= centerWeight;
+        }
+      }
+
+      // Gaussian blur the saliency map for smoother transitions (3x3 box blur, 2 passes)
+      for (let pass = 0; pass < 2; pass++) {
+        const tmp = new Float32Array(combined);
+        for (let y = 1; y < rows - 1; y++) {
+          for (let x = 1; x < cols - 1; x++) {
+            tmp[y * cols + x] = (
+              combined[(y-1)*cols+x-1] + combined[(y-1)*cols+x]*2 + combined[(y-1)*cols+x+1] +
+              combined[y*cols+x-1]*2     + combined[y*cols+x]*4     + combined[y*cols+x+1]*2 +
+              combined[(y+1)*cols+x-1] + combined[(y+1)*cols+x]*2 + combined[(y+1)*cols+x+1]
+            ) / 16;
+          }
+        }
+        combined.set(tmp);
+      }
+
+      // Final normalization to [0, 1]
+      let cMin = Infinity, cMax = -Infinity;
+      for (let i = 0; i < combined.length; i++) {
+        if (combined[i] < cMin) cMin = combined[i];
+        if (combined[i] > cMax) cMax = combined[i];
+      }
+      const cRange = cMax - cMin || 1;
+      for (let i = 0; i < combined.length; i++) {
+        combined[i] = (combined[i] - cMin) / cRange;
+      }
+
+      salMap = combined;
     }
   } catch (e) {
-    console.warn('Feature extraction failed:', e);
+    console.warn('Multi-scale feature extraction failed:', e);
   }
   tf.dispose(inputTensor);
 
   if (!salMap) return _computeGradientSaliency(rgba, srcW, srcH, cols, rows);
-
-  const fH = salMap.length;
-  const fW = salMap[0].length;
-  const out = new Float32Array(cols * rows);
-  for (let y = 0; y < rows; y++) {
-    for (let x = 0; x < cols; x++) {
-      const fy = (y / (rows - 1)) * (fH - 1);
-      const fx = (x / (cols - 1)) * (fW - 1);
-      const y0 = Math.floor(fy), y1 = Math.min(fH - 1, y0 + 1);
-      const x0 = Math.floor(fx), x1 = Math.min(fW - 1, x0 + 1);
-      const wy = fy - y0, wx = fx - x0;
-      out[y * cols + x] =
-        salMap[y0][x0] * (1 - wx) * (1 - wy) +
-        salMap[y0][x1] * wx * (1 - wy) +
-        salMap[y1][x0] * (1 - wx) * wy +
-        salMap[y1][x1] * wx * wy;
-    }
-  }
-  return out;
+  return salMap;
 }
 
 function _computeGradientSaliency(rgba, srcW, srcH, cols, rows) {
   const bright = computeBrightness(rgba, srcW, srcH);
   const small = resizeGray(bright, srcW, srcH, cols, rows);
   const { gx, gy } = sobel(small, cols, rows);
+
+  // Combine edge magnitude + local intensity variance for richer fallback
   const mag = new Float32Array(cols * rows);
   let maxM = 0;
   for (let i = 0; i < mag.length; i++) {
     mag[i] = Math.sqrt(gx[i] * gx[i] + gy[i] * gy[i]);
     if (mag[i] > maxM) maxM = mag[i];
   }
+
+  // Local variance (5x5 window) captures texture interest
+  const variance = new Float32Array(cols * rows);
+  let maxV = 0;
+  for (let y = 2; y < rows - 2; y++) {
+    for (let x = 2; x < cols - 2; x++) {
+      let sum = 0, sumSq = 0, count = 0;
+      for (let dy = -2; dy <= 2; dy++) {
+        for (let dx = -2; dx <= 2; dx++) {
+          const v = small[(y+dy) * cols + (x+dx)];
+          sum += v; sumSq += v * v; count++;
+        }
+      }
+      const mean = sum / count;
+      variance[y * cols + x] = sumSq / count - mean * mean;
+      if (variance[y * cols + x] > maxV) maxV = variance[y * cols + x];
+    }
+  }
+
+  // Combine: 60% edges + 40% texture variance
   const out = new Float32Array(cols * rows);
-  for (let i = 0; i < mag.length; i++) out[i] = maxM > 0 ? mag[i] / maxM : 0;
+  for (let i = 0; i < mag.length; i++) {
+    const edgeNorm = maxM > 0 ? mag[i] / maxM : 0;
+    const varNorm = maxV > 0 ? variance[i] / maxV : 0;
+    out[i] = edgeNorm * 0.6 + varNorm * 0.4;
+  }
+
+  // Center-prior bias
+  const cx = cols / 2, cy = rows / 2;
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      const dx = (x - cx) / cx, dy = (y - cy) / cy;
+      out[y * cols + x] *= 1.0 - Math.sqrt(dx * dx + dy * dy) * 0.2;
+    }
+  }
+
+  // Normalize
+  let oMax = 0;
+  for (let i = 0; i < out.length; i++) if (out[i] > oMax) oMax = out[i];
+  if (oMax > 0) for (let i = 0; i < out.length; i++) out[i] /= oMax;
+
   return out;
 }
 
@@ -1120,10 +1241,28 @@ export async function runPipeline(img, params) {
 
   if (saliencyAware && !showMask) {
     const salMap = await computeMLSaliency(sharpened, srcW, srcH, gridCols, rows);
+
+    // Compute global mean brightness for contrast modulation
+    let globalMean = 0;
+    for (let i = 0; i < bright.length; i++) globalMean += bright[i];
+    globalMean /= bright.length;
+
+    const boost = saliencyBoost || 0.5;
+
     for (let i = 0; i < bright.length; i++) {
-      const sal = salMap[i];
-      const bst = (sal - 0.45) * 2.0 * (saliencyBoost || 0.5);
-      bright[i] = Math.max(0, Math.min(255, bright[i] + bst * 45));
+      const sal = salMap[i];       // 0 = unimportant, 1 = most salient
+
+      // Contrast modulation: amplify deviation from mean in salient areas
+      // sal=1 → contrast multiplier up to 1.0 + boost*2.0 (e.g. 2.2x at boost=0.6)
+      // sal=0 → compress contrast towards mean (fade the background)
+      const contrastFactor = 1.0 + (sal - 0.3) * boost * 3.0;
+      const deviation = bright[i] - globalMean;
+      let newVal = globalMean + deviation * Math.max(0.3, contrastFactor);
+
+      // Also add a direct brightness lift for salient areas
+      newVal += sal * boost * 60;
+
+      bright[i] = Math.max(0, Math.min(255, newVal));
     }
   }
 
