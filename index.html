@@ -66,7 +66,7 @@
             <div class="ctrl">
               <div class="ctrl-label">Charset</div>
               <select id="charset">
-                <option value="full">Full density &nbsp; .\'`Il!i+_-/?|#@$</option>
+                <option value="common">Common &nbsp; 0-9a-zA-Z</option>
                 <option value="minimal">Minimal &nbsp; .:-=+*#%@</option>
                 <option value="blocks">Blocks &nbsp; ░▒▓█</option>
                 <option value="dots">Dots &nbsp; ·∘○◉●</option>
@@ -88,10 +88,12 @@
                 <option value="arrows">Arrows &nbsp; ←↑→↓↔↕</option>
                 <option value="cards">Cards &nbsp; ♠♣♥♦♤♧</option>
                 <option value="misc">Misc &nbsp; ☺☻•◦‣⁃</option>
-                <option value="common">Common &nbsp; 0-9a-zA-Z</option>
+                <option value="full">Full density &nbsp; .\'`Il!i+_-/?|#@$</option>
                 <option value="custom">Custom…</option>
               </select>
-              <div id="charset-preview" style="margin-top:6px;font-family:'Geist Mono',monospace;font-size:11px;color:var(--text-2);background:var(--surface-1);border:1px solid var(--border-2);border-radius:var(--r-sm);padding:6px;word-break:break-all;line-height:1.4;transition: color 0.2s;"></div>
+              <div id="charset-preview"
+                style="margin-top:6px;font-family:'Geist Mono',monospace;font-size:11px;color:var(--text-2);background:var(--surface-1);border:1px solid var(--border-2);border-radius:var(--r-sm);padding:6px;word-break:break-all;line-height:1.4;transition: color 0.2s;">
+              </div>
             </div>
             <div id="custom-charset-row" class="ctrl" style="display:none;">
               <div class="ctrl-label">Your characters</div>
@@ -358,7 +360,8 @@
             </div>
             <div class="ctrl">
               <button id="btn-link-gaps" class="btn btn-ghost" style="width:100%; justify-content:center; gap:6px;">
-                <svg id="icon-link-gaps" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
+                <svg id="icon-link-gaps" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
                   <path d="M18.84 12.61a5 5 0 0 0-7.54-7.54l-3 3a5 5 0 0 0 .54 7.54"></path>
                   <path d="M5.16 11.39a5 5 0 0 0 7.54 7.54l3-3a5 5 0 0 0-.54-7.54"></path>
                   <line x1="8" y1="2" x2="16" y2="22"></line>
