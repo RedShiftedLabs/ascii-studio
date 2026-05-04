@@ -198,22 +198,4 @@
   }
 }
 
-/* ── Responsive ───────────────── */
-@media (max-width: 800px) {
-  #preview-wrap {
-    padding: 10px;
-  }
-  #dropzone {
-    padding: 24px 14px;
-    border-width: 1px;
-  }
-  .dz-icon {
-    width: 42px;
-    height: 42px;
-    margin-bottom: 12px;
-  }
-  .dz-icon svg {
-    width: 16px;
-    height: 16px;
-  }
-}
+/* Mobile styles → mobile.css */

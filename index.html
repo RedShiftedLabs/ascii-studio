@@ -16,6 +16,7 @@
   <link rel="stylesheet" href="styles/sidebar.css?v=9" />
   <link rel="stylesheet" href="styles/controls.css?v=9" />
   <link rel="stylesheet" href="styles/preview.css?v=9" />
+  <link rel="stylesheet" href="styles/mobile.css?v=1" />
 </head>
 
 <body>
@@ -484,6 +485,42 @@
     </main>
   </div>
 
+  <!-- Mobile bottom navigation -->
+  <nav id="mobile-nav">
+    <button class="mobile-tab active" data-tab="preview">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      <span>Preview</span>
+    </button>
+    <button class="mobile-tab" data-tab="controls">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <span>Controls</span>
+    </button>
+    <button class="mobile-tab" data-tab="export">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      <span>Export</span>
+    </button>
+  </nav>
+
+  <!-- Mobile floating render button -->
+  <button id="mobile-render-fab" title="Render">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+  </button>
+
+  <!-- Mobile export sheet -->
+  <div id="mobile-export-sheet" class="mobile-sheet hidden">
+    <div class="sheet-header">
+      <span>Export</span>
+      <button class="sheet-close" id="close-export-sheet">&times;</button>
+    </div>
+    <div class="sheet-body">
+      <button class="sheet-btn" data-export="html"><span class="sheet-btn-icon">&#x3C;/&#x3E;</span> HTML</button>
+      <button class="sheet-btn" data-export="txt"><span class="sheet-btn-icon">Aa</span> TXT</button>
+      <button class="sheet-btn" data-export="png"><span class="sheet-btn-icon">&#x1F5BC;</span> PNG</button>
+      <button class="sheet-btn" data-export="svg"><span class="sheet-btn-icon">&#x25CB;</span> SVG</button>
+      <button class="sheet-btn" data-export="pdf"><span class="sheet-btn-icon">&#x1F4C4;</span> PDF</button>
+    </div>
+  </div>
+
   <div id="toast">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
       stroke-linejoin="round">
@@ -492,7 +529,7 @@
     <span id="toast-msg"></span>
   </div>
 
-  <script type="module" src="src/main.js?v=11"></script>
+  <script type="module" src="src/main.js?v=12"></script>
 </body>
 
 </html>

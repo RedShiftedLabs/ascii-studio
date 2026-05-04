@@ -125,22 +125,4 @@
   background: rgba(255, 255, 255, 0.14);
 }
 
-/* ── Responsive ───────────────── */
-@media (max-width: 800px) {
-  #sidebar {
-    width: 100%;
-    min-width: 100%;
-    height: 52vh;
-    max-height: 52vh;
-    border-right: none;
-    border-top: 1px solid var(--glass-border);
-  }
-  #sidebar-header {
-    display: none;
-  }
-  #sidebar::after {
-    width: 100%;
-    height: 2px;
-    background: linear-gradient(90deg, var(--accent), var(--teal), var(--pink), var(--purple));
-  }
-}
+/* Mobile styles → mobile.css */

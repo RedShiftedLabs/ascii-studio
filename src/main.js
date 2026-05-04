@@ -317,3 +317,83 @@ function toast(msg) {
   toastEl.classList.add('show');
   setTimeout(() => toastEl.classList.remove('show'), 2200);
 }
+
+/* ── Mobile Interactivity ── */
+const mobileTabs = document.querySelectorAll('.mobile-tab');
+const sidebar = document.getElementById('sidebar');
+const mobileRenderFab = document.getElementById('mobile-render-fab');
+const mobileExportSheet = document.getElementById('mobile-export-sheet');
+const closeExportSheet = document.getElementById('close-export-sheet');
+
+// Tab Switching
+mobileTabs.forEach(tab => {
+  tab.addEventListener('click', () => {
+    // Highlight active tab
+    mobileTabs.forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+
+    const target = tab.dataset.tab;
+    
+    if (target === 'preview') {
+      sidebar.classList.remove('mobile-visible');
+      mobileExportSheet.classList.add('hidden');
+    } else if (target === 'controls') {
+      sidebar.classList.add('mobile-visible');
+      mobileExportSheet.classList.add('hidden');
+    } else if (target === 'export') {
+      mobileExportSheet.classList.remove('hidden');
+    }
+  });
+});
+
+// Floating Render Button
+if (mobileRenderFab) {
+  mobileRenderFab.addEventListener('click', () => {
+    doRender();
+    // Auto-switch back to preview tab to see the result
+    document.querySelector('.mobile-tab[data-tab="preview"]')?.click();
+  });
+}
+
+// Close export sheet
+if (closeExportSheet) {
+  closeExportSheet.addEventListener('click', () => {
+    mobileExportSheet.classList.add('hidden');
+    // Revert tab state to whatever is visible
+    if (sidebar.classList.contains('mobile-visible')) {
+      document.querySelector('.mobile-tab[data-tab="controls"]')?.classList.add('active');
+    } else {
+      document.querySelector('.mobile-tab[data-tab="preview"]')?.classList.add('active');
+    }
+    document.querySelector('.mobile-tab[data-tab="export"]')?.classList.remove('active');
+  });
+}
+
+// Wire up sheet export buttons
+document.querySelectorAll('.sheet-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const format = btn.dataset.export;
+    let res, type, ext;
+
+    if (format === 'html') { res = exportHTML(); type = 'text/html'; ext = 'html'; }
+    else if (format === 'svg') { res = exportSVG(); type = 'image/svg+xml'; ext = 'svg'; }
+    else if (format === 'txt') { res = exportTXT(); type = 'text/plain'; ext = 'txt'; }
+    else if (format === 'png') { res = await exportPNG(); }
+    else if (format === 'pdf') { res = await exportPDF(); }
+
+    if (res) {
+      if (format === 'png' || format === 'pdf') triggerDownload(res, `render.${format}`);
+      else triggerDownloadText(res, `render.${ext}`, type);
+      toast(`Exported ${format.toUpperCase()}`);
+      mobileExportSheet.classList.add('hidden'); // Close sheet on success
+      
+      // Fix tab state
+      document.querySelector('.mobile-tab[data-tab="export"]')?.classList.remove('active');
+      if (sidebar.classList.contains('mobile-visible')) {
+        document.querySelector('.mobile-tab[data-tab="controls"]')?.classList.add('active');
+      } else {
+        document.querySelector('.mobile-tab[data-tab="preview"]')?.classList.add('active');
+      }
+    }
+  });
+});
