@@ -904,7 +904,7 @@ export function renderToSVG(charGrid, brightness, colourData, opts, opacities = 
   const parts = [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${svgW.toFixed(1)}" height="${svgH.toFixed(1)}" viewBox="0 0 ${svgW.toFixed(1)} ${svgH.toFixed(1)}">`,
     bgTransparent ? '' : `<rect width="100%" height="100%" fill="${bgHex}"/>`,
-    `<style>${fontImport} text{font-family:${outputFont};font-size:${fontSize}px;white-space:pre;letter-spacing:${hGap}px;}</style>`,
+    `<style><![CDATA[${fontImport} text{font-family:${outputFont};font-size:${fontSize}px;white-space:pre;letter-spacing:${hGap}px;}]]></style>`,
   ];
 
   for (let y = 0; y < rows; y++) {
