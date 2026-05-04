@@ -1,14 +1,18 @@
+/* ── Sidebar (frosted glass panel) ───────────────── */
 #sidebar {
   width: var(--sidebar-w);
   min-width: var(--sidebar-w);
-  background: var(--surface);
-  border-right: 1px solid var(--border);
+  background: var(--glass);
+  backdrop-filter: blur(var(--blur)) saturate(1.5);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(1.5);
+  border-right: 1px solid var(--glass-border);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   position: relative;
 }
 
+/* Animated gradient accent strip */
 #sidebar::after {
   content: '';
   position: absolute;
@@ -16,14 +20,40 @@
   left: 0;
   width: 2px;
   height: 100%;
-  background: linear-gradient(180deg, var(--accent), var(--teal), var(--pink));
-  opacity: 0.6;
+  background: linear-gradient(
+    180deg,
+    var(--accent) 0%,
+    var(--teal) 35%,
+    var(--pink) 65%,
+    var(--purple) 100%
+  );
+  opacity: 0.5;
+  background-size: 100% 200%;
+  animation: gradientShift 8s ease-in-out infinite alternate;
 }
 
+@keyframes gradientShift {
+  0%   { background-position: 0% 0%; opacity: 0.4; }
+  100% { background-position: 0% 100%; opacity: 0.7; }
+}
+
+/* ── Sidebar header ───────────────── */
 #sidebar-header {
-  padding: 16px 16px 14px 18px;
-  border-bottom: 1px solid var(--border);
+  padding: 18px 18px 16px 20px;
+  border-bottom: 1px solid var(--glass-border);
   flex-shrink: 0;
+  position: relative;
+}
+
+/* Glass highlight on header */
+#sidebar-header::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 10%;
+  right: 10%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--glass-highlight), transparent);
 }
 
 .logo {
@@ -33,14 +63,21 @@
 }
 
 .logo-mark {
-  width: 28px;
-  height: 28px;
-  background: var(--accent);
-  border-radius: 6px;
+  width: 30px;
+  height: 30px;
+  background: linear-gradient(135deg, var(--accent), #b8e63c);
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  box-shadow: 0 2px 12px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition: transform 0.3s var(--ease-spring), box-shadow 0.3s;
+}
+
+.logo-mark:hover {
+  transform: scale(1.08) rotate(-3deg);
+  box-shadow: 0 4px 20px var(--accent-glow);
 }
 
 .logo-mark svg {
@@ -49,7 +86,7 @@
 }
 
 .logo h1 {
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 600;
   letter-spacing: 0.4px;
   color: var(--text);
@@ -64,6 +101,7 @@
   margin-top: 1px;
 }
 
+/* ── Scrollable controls area ───────────────── */
 #controls-scroll {
   flex: 1;
   overflow-y: auto;
@@ -79,11 +117,15 @@
 }
 
 #controls-scroll::-webkit-scrollbar-thumb {
-  background: var(--border-2);
+  background: rgba(255, 255, 255, 0.08);
   border-radius: 2px;
 }
 
- 
+#controls-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+/* ── Responsive ───────────────── */
 @media (max-width: 800px) {
   #sidebar {
     width: 100%;
@@ -91,7 +133,7 @@
     height: 52vh;
     max-height: 52vh;
     border-right: none;
-    border-top: 1px solid var(--border);
+    border-top: 1px solid var(--glass-border);
   }
   #sidebar-header {
     display: none;
@@ -99,6 +141,6 @@
   #sidebar::after {
     width: 100%;
     height: 2px;
-    background: linear-gradient(90deg, var(--accent), var(--teal), var(--pink));
+    background: linear-gradient(90deg, var(--accent), var(--teal), var(--pink), var(--purple));
   }
 }
