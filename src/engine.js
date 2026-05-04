@@ -179,8 +179,10 @@ export function randomOverlayChars(brightness, w, h, chars, invert = false, seed
     grid.push(row);
   }
 
-  // Edge-aware opacity modulation for sharp, detailed output
+  /* ── Advanced opacity computation ── */
   const processedBright = retinexNormalization(brightness, w, h);
+
+  // 1) Edge detection for outline emphasis
   const { gx, gy } = sobel(processedBright, w, h);
   const edgeMag = new Float32Array(w * h);
   let maxM = 0;
@@ -190,19 +192,61 @@ export function randomOverlayChars(brightness, w, h, chars, invert = false, seed
   }
   if (maxM > 0) for (let i = 0; i < edgeMag.length; i++) edgeMag[i] /= maxM;
 
+  // 2) Local contrast (standard deviation in a 7×7 window)
+  //    Areas with high local contrast = detail/texture → boost opacity
+  const localContrast = new Float32Array(w * h);
+  let maxLC = 0;
+  const r = 3; // half-window
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let sum = 0, sumSq = 0, count = 0;
+      for (let dy = -r; dy <= r; dy++) {
+        const yy = y + dy;
+        if (yy < 0 || yy >= h) continue;
+        for (let dx = -r; dx <= r; dx++) {
+          const xx = x + dx;
+          if (xx < 0 || xx >= w) continue;
+          const v = processedBright[yy * w + xx];
+          sum += v; sumSq += v * v; count++;
+        }
+      }
+      const mean = sum / count;
+      const std = Math.sqrt(Math.max(0, sumSq / count - mean * mean));
+      localContrast[y * w + x] = std;
+      if (std > maxLC) maxLC = std;
+    }
+  }
+  if (maxLC > 0) for (let i = 0; i < localContrast.length; i++) localContrast[i] /= maxLC;
+
+  // 3) Percentile-based stretching for better dynamic range
+  //    Instead of assuming 0-255, find the actual 2nd and 98th percentile
+  const sorted = Array.from(processedBright).sort((a, b) => a - b);
+  const lo = sorted[Math.floor(sorted.length * 0.02)];
+  const hi = sorted[Math.floor(sorted.length * 0.98)];
+  const range = hi - lo || 1;
+
+  // 4) Compute opacities with adaptive S-curve
   const opacities = new Float32Array(w * h);
   for (let i = 0; i < w * h; i++) {
-    let luma = processedBright[i] / 255;
+    // Stretch to [0, 1] using percentile bounds
+    let luma = Math.max(0, Math.min(1, (processedBright[i] - lo) / range));
     if (invert) luma = 1 - luma;
 
-    // Boost edges so outlines pop
-    luma = Math.min(1, luma + edgeMag[i] * 0.4);
+    // S-curve (smooth Hermite) — pushes darks darker and brights brighter
+    // Double-applied for sharper separation
+    let t = luma * luma * (3 - 2 * luma);        // smoothstep #1
+    t = t * t * (3 - 2 * t);                      // smoothstep #2 — steeper
 
-    // Gamma curve to preserve mid-tones
-    let opacity = Math.pow(luma, 0.65);
+    // Boost edges strongly (outlines should always be visible)
+    const edgeBoost = edgeMag[i] * 0.5;
 
-    // Floor so dark areas still show subtle texture
-    opacities[i] = 0.04 + opacity * 0.96;
+    // Boost areas with high local contrast (detail/texture)
+    const detailBoost = localContrast[i] * 0.25;
+
+    let opacity = t + edgeBoost + detailBoost;
+
+    // Clamp and apply a subtle floor (0.02 so darkest areas have a faint hint)
+    opacities[i] = Math.min(1, Math.max(0.02, opacity));
   }
 
   return { charGrid: grid, opacities };
