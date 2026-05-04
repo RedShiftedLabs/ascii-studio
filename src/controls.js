@@ -31,7 +31,7 @@ export const DEFAULT_PARAMS = {
   outputFont: "'Courier New',Courier,monospace",
   saliencyAware: false,
   saliencyBoost: 0.60,
-  randomOverlay: false,
+  randomOverlay: true,
 };
 
 export function initControls(onChange) {
