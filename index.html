@@ -345,8 +345,26 @@
           </div>
           <div class="section-body">
             <div class="ctrl">
-              <div class="ctrl-label">Font size <span class="ctrl-val" id="val-font_size">6</span>px</div>
-              <input type="range" id="font_size" min="3" max="16" step="1" value="6" />
+              <div class="ctrl-label">Font size <span class="ctrl-val" id="val-font_size">6.00</span>px</div>
+              <input type="range" id="font_size" min="3" max="50" step="0.1" value="6" />
+            </div>
+            <div class="ctrl">
+              <div class="ctrl-label">Vertical gap <span class="ctrl-val" id="val-vertical_gap">1.15</span></div>
+              <input type="range" id="vertical_gap" min="0.5" max="3.0" step="0.01" value="1.15" />
+            </div>
+            <div class="ctrl">
+              <div class="ctrl-label">Horizontal gap <span class="ctrl-val" id="val-horizontal_gap">0.30</span></div>
+              <input type="range" id="horizontal_gap" min="-2.0" max="10.0" step="0.01" value="0.30" />
+            </div>
+            <div class="ctrl">
+              <button id="btn-link-gaps" class="btn btn-ghost" style="width:100%; justify-content:center; gap:6px;">
+                <svg id="icon-link-gaps" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
+                  <path d="M18.84 12.61a5 5 0 0 0-7.54-7.54l-3 3a5 5 0 0 0 .54 7.54"></path>
+                  <path d="M5.16 11.39a5 5 0 0 0 7.54 7.54l3-3a5 5 0 0 0-.54-7.54"></path>
+                  <line x1="8" y1="2" x2="16" y2="22"></line>
+                </svg>
+                <span id="label-link-gaps">LINK GAPS</span>
+              </button>
             </div>
             <div class="ctrl">
               <div class="ctrl-label">Typeface</div>

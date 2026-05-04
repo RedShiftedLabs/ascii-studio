@@ -24,7 +24,10 @@ export const DEFAULT_PARAMS = {
   bgTransparent: false,
   fgHex: '#c8c8c8',
   colourMode: false,
-  fontSize: 6,
+  fontSize: 6.0,
+  verticalGap: 1.15,
+  horizontalGap: 0.30,
+  linkGaps: false,
   outputFont: "'Courier New',Courier,monospace",
   saliencyAware: false,
   saliencyBoost: 0.60,
@@ -80,21 +83,35 @@ export function initControls(onChange) {
   const charsetEl = document.getElementById('charset');
   const customRow = document.getElementById('custom-charset-row');
   const customInput = document.getElementById('custom_charset');
+  const charsetPreview = document.getElementById('charset-preview');
   charsetEl.value = state.charset;
+
+  const updateCharsetPreview = () => {
+    if (!charsetPreview) return;
+    if (state.charset === 'custom') {
+      charsetPreview.textContent = state.customCharset || 'Enter custom characters...';
+    } else {
+      charsetPreview.textContent = (RAW_CHARSETS[state.charset] || '').trim();
+    }
+  };
+
   const toggleCustomRow = () => {
     customRow.style.display = state.charset === 'custom' ? '' : 'none';
   };
   toggleCustomRow();
+  updateCharsetPreview();
   charsetEl.addEventListener('change', () => {
     state.charset = charsetEl.value;
     toggleCustomRow();
+    updateCharsetPreview();
     onChange(state);
   });
   let customDebounce = null;
   customInput.addEventListener('input', () => {
-    const val = customInput.value.trim();
-    if (!val || val.length < 2) return;
+    const val = customInput.value;
     state.customCharset = val;
+    updateCharsetPreview();
+    if (!val.trim() || val.trim().length < 2) return;
     clearTimeout(customDebounce);
     customDebounce = setTimeout(() => onChange(state), 500);
   });
@@ -194,7 +211,66 @@ export function initControls(onChange) {
     });
   });
 
-  bindSlider('font_size', 'fontSize', v => v);
+  bindSlider('font_size', 'fontSize', v => parseFloat(v).toFixed(2));
+  
+  // Custom binding for gaps to handle linking
+  const vGapEl = document.getElementById('vertical_gap');
+  const hGapEl = document.getElementById('horizontal_gap');
+  const vGapLbl = document.getElementById('val-vertical_gap');
+  const hGapLbl = document.getElementById('val-horizontal_gap');
+  const btnLinkGaps = document.getElementById('btn-link-gaps');
+  const iconLinkGaps = document.getElementById('icon-link-gaps');
+  let gapRatio = state.verticalGap / (state.horizontalGap || 1);
+
+  const updateLinkGapsUI = () => {
+    if (state.linkGaps) {
+      iconLinkGaps.innerHTML = `<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>`;
+      btnLinkGaps.classList.add('active');
+    } else {
+      iconLinkGaps.innerHTML = `<path d="M18.84 12.61a5 5 0 0 0-7.54-7.54l-3 3a5 5 0 0 0 .54 7.54"></path><path d="M5.16 11.39a5 5 0 0 0 7.54 7.54l3-3a5 5 0 0 0-.54-7.54"></path><line x1="8" y1="2" x2="16" y2="22"></line>`;
+      btnLinkGaps.classList.remove('active');
+    }
+  };
+
+  if (vGapEl && hGapEl) {
+    vGapEl.value = state.verticalGap;
+    hGapEl.value = state.horizontalGap;
+    if (vGapLbl) vGapLbl.textContent = state.verticalGap.toFixed(2);
+    if (hGapLbl) hGapLbl.textContent = state.horizontalGap.toFixed(2);
+
+    vGapEl.addEventListener('input', () => {
+      state.verticalGap = parseFloat(vGapEl.value);
+      if (vGapLbl) vGapLbl.textContent = state.verticalGap.toFixed(2);
+      if (state.linkGaps && gapRatio !== 0 && !isNaN(gapRatio)) {
+        state.horizontalGap = state.verticalGap / gapRatio;
+        hGapEl.value = state.horizontalGap;
+        if (hGapLbl) hGapLbl.textContent = state.horizontalGap.toFixed(2);
+      }
+      onChange(state);
+    });
+
+    hGapEl.addEventListener('input', () => {
+      state.horizontalGap = parseFloat(hGapEl.value);
+      if (hGapLbl) hGapLbl.textContent = state.horizontalGap.toFixed(2);
+      if (state.linkGaps && gapRatio !== 0 && !isNaN(gapRatio)) {
+        state.verticalGap = state.horizontalGap * gapRatio;
+        vGapEl.value = state.verticalGap;
+        if (vGapLbl) vGapLbl.textContent = state.verticalGap.toFixed(2);
+      }
+      onChange(state);
+    });
+  }
+
+  if (btnLinkGaps) {
+    updateLinkGapsUI();
+    btnLinkGaps.addEventListener('click', () => {
+      state.linkGaps = !state.linkGaps;
+      if (state.linkGaps) {
+        gapRatio = state.verticalGap / (state.horizontalGap || 1);
+      }
+      updateLinkGapsUI();
+    });
+  }
   const fontSelect = document.getElementById('output_font');
   if (fontSelect) {
     fontSelect.value = state.outputFont;

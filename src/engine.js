@@ -760,8 +760,8 @@ export function renderToCanvas(charGrid, brightness, colourData, opts, opacities
   const strippedChars = (charset === 'custom' && safeCustom) ? safeCustom.replace(/\s/g, '') : safeCharset.replace(/\s/g, '');
   const isBinary = strippedChars === '01' || strippedChars === '10' || charset === 'binary';
 
-  const hGap = isBinary ? 1.0 : 0.3;
-  const lHeight = isBinary ? 1.10 : 1.15;
+  const hGap = opts.horizontalGap !== undefined ? opts.horizontalGap : (isBinary ? 1.0 : 0.3);
+  const lHeight = opts.verticalGap !== undefined ? opts.verticalGap : (isBinary ? 1.10 : 1.15);
 
   const charW = fontSize * (charAspect || 0.6);
   const charH = fontSize * lHeight;
@@ -845,8 +845,8 @@ export function renderToHTML(charGrid, brightness, colourData, opts, opacities =
   const safeCharset = String(charset || '');
   const safeCustom = String(opts.customCharset || '');
   const isBinary = charset === 'binary' || (charset === 'custom' && safeCustom.replace(/\s/g, '') === '01');
-  const hGap = isBinary ? '1px' : '0.3px';
-  const lHeight = isBinary ? '1.1' : '1.15';
+  const hGap = opts.horizontalGap !== undefined ? `${opts.horizontalGap}px` : (isBinary ? '1px' : '0.3px');
+  const lHeight = opts.verticalGap !== undefined ? opts.verticalGap : (isBinary ? '1.1' : '1.15');
 
   const lines = [];
   for (let y = 0; y < rows; y++) {
@@ -894,8 +894,8 @@ export function renderToSVG(charGrid, brightness, colourData, opts, opacities = 
   const safeCustom = String(opts.customCharset || '');
   const strippedChars = (charset === 'custom' && safeCustom) ? safeCustom.replace(/\s/g, '') : safeCharset.replace(/\s/g, '');
   const isBinary = strippedChars === '01' || strippedChars === '10' || charset === 'binary';
-  const hGap = isBinary ? 1.0 : 0.3;
-  const lHeight = isBinary ? 1.10 : 1.15;
+  const hGap = opts.horizontalGap !== undefined ? opts.horizontalGap : (isBinary ? 1.0 : 0.3);
+  const lHeight = opts.verticalGap !== undefined ? opts.verticalGap : (isBinary ? 1.10 : 1.15);
 
   const cw = fontSize * (charAspect || 0.6);
   const ch = fontSize * lHeight;
@@ -906,7 +906,7 @@ export function renderToSVG(charGrid, brightness, colourData, opts, opacities = 
   const parts = [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${svgW.toFixed(1)}" height="${svgH.toFixed(1)}" viewBox="0 0 ${svgW.toFixed(1)} ${svgH.toFixed(1)}">`,
     bgTransparent ? '' : `<rect width="100%" height="100%" fill="${bgHex}"/>`,
-    `<style>${fontImport} text{font-family:${outputFont};font-size:${fontSize}px;white-space:pre;letter-spacing:0.3px;}</style>`,
+    `<style>${fontImport} text{font-family:${outputFont};font-size:${fontSize}px;white-space:pre;letter-spacing:${hGap}px;}</style>`,
   ];
 
   for (let y = 0; y < rows; y++) {
