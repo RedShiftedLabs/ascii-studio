@@ -8,7 +8,7 @@ export const RAW_CHARSETS = {
   braille: ' ⠁⠂⠃⠄⠅⠆⠇⠈⠉⠊⠋⠌⠍⠎⠏⠐⠑⠒⠓⠔⠕⠖⠗⠘⠙⠚⠛⠜⠝⠞⠟⠠⠡⠢⠣⠤⠥⠦⠧⠨⠩⠪⠫⠬⠭⠮⠯⠰⠱⠲⠳⠴⠵⠶⠷⠸⠹⠺⠻⠼⠽⠾⠿',
   lineart: ' .,:;i|/\\()[]{}tfjl!-_+=xXYZO0#%@',
   edges: ' .-+|/\\xX#@',
-  binary: ' 01',
+  binary: '01',
   numbers: ' 1732456908',
   scanlines: ' ─━═╌╍║│├┤┬┴┼╫╪',
   circuit: ' .·+×╋┼├┤╠╣╦╩╬○●◎',
@@ -1125,6 +1125,7 @@ export async function runPipeline(img, params) {
     };
   }
   let charGrid;
+  let opacities = null;
 
   if (showMask) {
     charGrid = [];
@@ -1134,6 +1135,49 @@ export async function runPipeline(img, params) {
       for (let x = 0; x < gridCols; x++) {
         const a = alphaResized ? alphaResized[y * gridCols + x] : 255;
         row.push(a >= t ? chars[chars.length - 1] : ' ');
+      }
+      charGrid.push(row);
+    }
+  } else if (isBinaryCharset) {
+    /* ── Binary mode: fill every cell with random 0/1, use opacity for image ── */
+    const rng = _makeLCG(gridCols * rows + srcW * 31 + srcH * 17);
+    charGrid = [];
+    opacities = new Float32Array(gridCols * rows);
+
+    // Compute edge-aware brightness for opacity
+    const processedBright = retinexNormalization(bright, gridCols, rows);
+    const { gx, gy } = sobel(processedBright, gridCols, rows);
+    const edgeMag = new Float32Array(gridCols * rows);
+    let maxM = 0;
+    for (let i = 0; i < edgeMag.length; i++) {
+      edgeMag[i] = Math.sqrt(gx[i] * gx[i] + gy[i] * gy[i]);
+      if (edgeMag[i] > maxM) maxM = edgeMag[i];
+    }
+    if (maxM > 0) for (let i = 0; i < edgeMag.length; i++) edgeMag[i] /= maxM;
+
+    for (let y = 0; y < rows; y++) {
+      const row = [];
+      for (let x = 0; x < gridCols; x++) {
+        const idx = y * gridCols + x;
+        // Random 0 or 1 — no spaces ever
+        row.push(rng() > 0.5 ? '1' : '0');
+
+        // Opacity from brightness: bright areas fully visible, dark areas nearly invisible
+        let luma = processedBright[idx] / 255;
+        if (invert) luma = 1 - luma;
+
+        // Boost edges so outlines pop
+        const edgeBoost = edgeMag[idx] * 0.4;
+        luma = Math.min(1, luma + edgeBoost);
+
+        // Apply a gamma curve so mid-tones stay visible
+        const gamma = 0.65;
+        let opacity = Math.pow(luma, gamma);
+
+        // Floor so dark areas still have a hint of texture
+        opacity = 0.04 + opacity * 0.96;
+
+        opacities[idx] = opacity;
       }
       charGrid.push(row);
     }
@@ -1161,7 +1205,7 @@ export async function runPipeline(img, params) {
       }
     }
 
-    if (isBinaryCharset || charset === 'full' || charset === 'lineart' || charset === 'edges') {
+    if (charset === 'full' || charset === 'lineart' || charset === 'edges') {
       fullResData = {
         data: computeBrightness(sharpened, srcW, srcH),
         w: srcW,
@@ -1170,7 +1214,7 @@ export async function runPipeline(img, params) {
     }
 
     let brightForChars = processedBright;
-    if (dither && !fullResData && !isBinaryCharset) {
+    if (dither && !fullResData) {
       brightForChars = floydSteinberg(processedBright, gridCols, rows, chars.length);
     }
     if (attenuation > 0) {
@@ -1193,5 +1237,5 @@ export async function runPipeline(img, params) {
     }
   }
 
-  return { charGrid, brightness: rawBright, colourData: colourResized ? colourResized.data : null, rows, cols: gridCols };
+  return { charGrid, brightness: rawBright, colourData: colourResized ? colourResized.data : null, rows, cols: gridCols, opacities };
 }
