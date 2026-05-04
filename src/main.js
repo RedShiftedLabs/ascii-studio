@@ -264,20 +264,22 @@ document.getElementById('btn-png').addEventListener('click', async () => {
   setStatus('Generating PNG…', 'busy');
   try {
     const blob = await exportPNG();
+    if (!blob) { toast('Render an image first'); setStatus('Ready', ''); return; }
     triggerDownload(blob, 'ascii_art.png');
     setStatus('PNG saved', 'ok');
     toast('PNG saved ✓');
-  } catch (e) { setStatus('PNG error: ' + e.message, 'err'); }
+  } catch (e) { setStatus('PNG error: ' + (e.message || e), 'err'); console.error(e); }
 });
 
 document.getElementById('btn-pdf').addEventListener('click', async () => {
   setStatus('Generating PDF…', 'busy');
   try {
     const blob = await exportPDF();
+    if (!blob) { toast('Render an image first'); setStatus('Ready', ''); return; }
     triggerDownload(blob, 'ascii_art.pdf');
     setStatus('PDF saved', 'ok');
     toast('PDF saved ✓');
-  } catch (e) { setStatus('PDF error: ' + e.message, 'err'); }
+  } catch (e) { setStatus('PDF error: ' + (e.message || e), 'err'); console.error(e); }
 });
 
 function setStatus(msg, cls = '') {

@@ -1,5 +1,5 @@
 export const RAW_CHARSETS = {
-  full: ' .\'`^",:;Il!i><~+_-?][}{1)(|/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$',
+  common: ' 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
   minimal: ' .:-=+*#%@',
   blocks: ' ░▒▓█',
   dots: ' ·∘○◉●',
@@ -21,7 +21,7 @@ export const RAW_CHARSETS = {
   arrows: ' ←↑→↓↔↕↖↗↘↙⇐⇑⇒⇓⇔⇕⇖⇗⇘⇙⇦⇧⇨⇩➔➘➙➚➛➜➝➞➟➠➡➢➣➤➥➦➧➨➩➪➫➬➭➮➯➱',
   cards: ' ♠♣♥♦♤♧♡♢🂡🂢🂣🂤🂥🂦🂧🂨🂩🂪🂫🂭🂮',
   misc: ' ☺☻•◦‣⁃⁌⁍·⋅☀☁☂☃☄☎☏☐☑☒☓☖☗☘☙☚☛☜☞☟☠☡☢☣☤☥☦☧☨☩☪☫☬☭☮☯☰☱☲☳☴☵☶☷☸☹☼☽☾☿♀♂♁⚢⚣⚤⚥⚦⚧⚨⚩⚬⚭⚮⚯⚰⚱⚲⚳⚴⚵⚶⚷⚸⚹⚺⚻⚼⚿⛀⛁⛂⛃⛆⛇⛈⛉⛊⛋⛌⛍⛏⛐⛑⛒⛓⛕⛖⛗⛘⛙⛚⛛⛜⛝⛞⛟⛠⛡⛢⛣⛤⛥⛦⛧⛨⛩⛫⛬⛭⛮⛯⛰⛱⛴⛶⛷⛸⛻⛼⛾⛿',
-  common: ' 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
+  full: ' .\'`^",:;Il!i><~+_-?][}{1)(|/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$',
 };
 
 export const THEMES = {
@@ -946,23 +946,71 @@ export function renderToTxt(charGrid) {
   return charGrid.map(row => row.join('')).join('\n');
 }
 
+/* ── Font embedding for self-contained SVG exports ──────── */
+let _fontCache = {};
+
+async function _fetchAsBase64(url) {
+  const resp = await fetch(url);
+  const blob = await resp.blob();
+  return new Promise(resolve => {
+    const r = new FileReader();
+    r.onloadend = () => resolve(r.result);
+    r.readAsDataURL(blob);
+  });
+}
+
+async function embedFontsInSVG(svgString) {
+  const importMatch = svgString.match(/@import\s+url\(['"]?(.*?)['"]?\)/);
+  if (!importMatch) return svgString;
+
+  const cssUrl = importMatch[1];
+
+  try {
+    // Check cache
+    if (!_fontCache[cssUrl]) {
+      const resp = await fetch(cssUrl);
+      let css = await resp.text();
+
+      // Find all font file URLs and replace with base64
+      const urlMatches = [...css.matchAll(/url\((https:\/\/[^)]+)\)/g)];
+      for (const m of urlMatches) {
+        const fontUrl = m[1];
+        const b64 = await _fetchAsBase64(fontUrl);
+        css = css.replace(fontUrl, b64);
+      }
+      _fontCache[cssUrl] = css;
+    }
+
+    // Replace @import with inlined @font-face rules
+    return svgString.replace(/@import\s+url\([^)]+\);?\s*/, _fontCache[cssUrl] + '\n');
+  } catch (e) {
+    console.warn('Font embedding failed, using fallback:', e);
+    return svgString;
+  }
+}
+
 export async function renderToPNG(svgString) {
-  const blob = new Blob([svgString], { type: 'image/svg+xml' });
-  const url = URL.createObjectURL(blob);
+  const embeddedSvg = await embedFontsInSVG(svgString);
+  const svgBase64 = btoa(unescape(encodeURIComponent(embeddedSvg)));
+  const dataUrl = `data:image/svg+xml;base64,${svgBase64}`;
+
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
       const dpr = window.devicePixelRatio || 1;
       const canvas = document.createElement('canvas');
-      canvas.width = img.width * dpr; canvas.height = img.height * dpr;
+      canvas.width = img.naturalWidth * dpr;
+      canvas.height = img.naturalHeight * dpr;
       const ctx = canvas.getContext('2d');
       ctx.scale(dpr, dpr);
-      ctx.drawImage(img, 0, 0);
-      URL.revokeObjectURL(url);
-      canvas.toBlob(b => resolve(b), 'image/png');
+      ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight);
+      canvas.toBlob(b => {
+        if (b) resolve(b);
+        else reject(new Error('Canvas toBlob returned null'));
+      }, 'image/png');
     };
-    img.onerror = reject;
-    img.src = url;
+    img.onerror = () => reject(new Error('Failed to rasterize SVG — the image could not be decoded'));
+    img.src = dataUrl;
   });
 }
 
@@ -971,25 +1019,33 @@ export async function renderToPDF(svgString) {
     await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
   }
   const { jsPDF } = window.jspdf;
-  const blob = new Blob([svgString], { type: 'image/svg+xml' });
-  const url = URL.createObjectURL(blob);
+
+  const embeddedSvg = await embedFontsInSVG(svgString);
+  const svgBase64 = btoa(unescape(encodeURIComponent(embeddedSvg)));
+  const dataUrl = `data:image/svg+xml;base64,${svgBase64}`;
+
   const img = await new Promise((res, rej) => {
-    const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url;
+    const i = new Image();
+    i.onload = () => res(i);
+    i.onerror = () => rej(new Error('Failed to rasterize SVG for PDF'));
+    i.src = dataUrl;
   });
+
   const dpr = window.devicePixelRatio || 1;
   const canvas = document.createElement('canvas');
-  canvas.width = img.width * dpr; canvas.height = img.height * dpr;
+  canvas.width = img.naturalWidth * dpr;
+  canvas.height = img.naturalHeight * dpr;
   const ctx = canvas.getContext('2d');
   ctx.scale(dpr, dpr);
-  ctx.drawImage(img, 0, 0);
-  URL.revokeObjectURL(url);
+  ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight);
+
   const imgData = canvas.toDataURL('image/png');
   const pdf = new jsPDF({
-    orientation: img.width > img.height ? 'landscape' : 'portrait',
+    orientation: img.naturalWidth > img.naturalHeight ? 'landscape' : 'portrait',
     unit: 'px',
-    format: [img.width, img.height],
+    format: [img.naturalWidth, img.naturalHeight],
   });
-  pdf.addImage(imgData, 'PNG', 0, 0, img.width, img.height);
+  pdf.addImage(imgData, 'PNG', 0, 0, img.naturalWidth, img.naturalHeight);
   return pdf.output('blob');
 }
 
