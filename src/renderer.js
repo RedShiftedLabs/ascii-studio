@@ -49,6 +49,8 @@ export async function render(params) {
     bgHex: params.bgHex || theme.bg,
     bgTransparent: params.bgTransparent,
     fontSize: params.fontSize,
+    verticalGap: params.verticalGap,
+    horizontalGap: params.horizontalGap,
     outputFont: params.outputFont,
     multiscale: params.multiscale,
     multiscaleBoost: params.multiscaleBoost,

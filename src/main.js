@@ -173,10 +173,11 @@ async function doRender() {
 
   try {
     const canvas = await render(params);
+    canvas.style.animation = 'resultPopIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards';
     resultInner.innerHTML = '';
     resultInner.appendChild(canvas);
     dropzone.style.display = 'none';
-    resultWrap.style.display = 'block';
+    resultWrap.style.display = 'flex';
     document.getElementById('zoom-controls').style.display = 'flex';
     exportBtns.forEach(b => b.style.display = ''); 
     setStatus(`Done · ${params.cols} cols · ${params.theme}`, 'ok');
