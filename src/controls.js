@@ -31,7 +31,6 @@ export const DEFAULT_PARAMS = {
   outputFont: "'Courier New',Courier,monospace",
   saliencyAware: false,
   saliencyBoost: 0.60,
-  randomOverlay: true,
 };
 
 export function initControls(onChange) {
@@ -181,7 +180,6 @@ export function initControls(onChange) {
 
    
   const _advancedModes = [
-    { id: 'random_overlay', key: 'randomOverlay' },
     { id: 'saliency_aware', key: 'saliencyAware', subCtrlId: 'saliency-sub' },
   ];
 

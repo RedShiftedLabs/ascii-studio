@@ -1246,7 +1246,7 @@ export async function runPipeline(img, params) {
     colourMode, attenuation,
     multiscale, multiscaleBoost,
     saliencyAware, saliencyBoost,
-    randomOverlay, bgTransparent,
+    bgTransparent,
   } = params;
 
   const { data: rgba, w: srcW, h: srcH } = img;
@@ -1311,7 +1311,7 @@ export async function runPipeline(img, params) {
   }
 
   /* ── Matrix Fill: random chars + opacity-modulated image (binary always uses this) ── */
-  if (randomOverlay || isBinaryCharset) {
+  if (isBinaryCharset) {
     const seed = gridCols * rows + srcW * 31 + srcH * 17;
     const { charGrid: rGrid, opacities } = randomOverlayChars(
       bright, gridCols, rows, chars, invert, seed
