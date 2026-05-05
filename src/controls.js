@@ -31,6 +31,7 @@ export const DEFAULT_PARAMS = {
   outputFont: "'JetBrains Mono',monospace",
   saliencyAware: true,
   saliencyBoost: 0.60,
+  dataFlood: false,
 };
 
 export function initControls(onChange) {
@@ -94,17 +95,23 @@ export function initControls(onChange) {
     }
   };
 
+  charsetEl.addEventListener('change', () => {
+    state.charset = charsetEl.value;
+    if (state.charset === 'binary' || state.charset === 'numbers') {
+      state.dataFlood = true;
+      const dfEl = document.getElementById('data_flood');
+      if (dfEl) dfEl.checked = true;
+    }
+    toggleCustomRow();
+    updateCharsetPreview();
+    onChange(state);
+  });
+
   const toggleCustomRow = () => {
     customRow.style.display = state.charset === 'custom' ? '' : 'none';
   };
   toggleCustomRow();
   updateCharsetPreview();
-  charsetEl.addEventListener('change', () => {
-    state.charset = charsetEl.value;
-    toggleCustomRow();
-    updateCharsetPreview();
-    onChange(state);
-  });
   let customDebounce = null;
   customInput.addEventListener('input', () => {
     const val = customInput.value;
@@ -128,6 +135,7 @@ export function initControls(onChange) {
   bindSlider('alpha_threshold', 'alphaThreshold');
   bindCheckbox('multiscale', 'multiscale', 'multiscale-sub');
   bindSlider('multiscale_boost', 'multiscaleBoost');
+  bindCheckbox('data_flood', 'dataFlood');
 
   function updateThemeSwatch(theme) {
     const swBg = document.getElementById('swatch-bg');

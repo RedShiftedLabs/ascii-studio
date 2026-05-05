@@ -470,10 +470,9 @@ export function cleanupBinaryGrid(grid, w, h) {
   return newGrid;
 }
 
-export function brightnessToChars(brightness, w, h, chars, invert = false, edgeMag = null, fullResData = null) {
+export function brightnessToChars(brightness, w, h, chars, invert = false, edgeMag = null, fullResData = null, dataFlood = false) {
   const n = chars.length - 1;
   const stripped = chars.replace(/\s/g, '');
-  const isBinary = stripped === '01' || stripped === '10';
   const isNumbers = /^[0-9]+$/.test(stripped);
 
   const gentleCurve = (t) => Math.pow(t, 0.92);
@@ -541,7 +540,7 @@ export function brightnessToChars(brightness, w, h, chars, invert = false, edgeM
       }
       grid.push(row);
     }
-    return isBinary ? cleanupBinaryGrid(grid, w, h) : grid;
+    return grid;
   }
 
   const bayer4x4 = [
@@ -558,7 +557,7 @@ export function brightnessToChars(brightness, w, h, chars, invert = false, edgeM
       let norm = brightness[y * w + x] / 255;
       if (invert) norm = 1 - norm;
 
-      if (isBinary || isNumbers) {
+      if (dataFlood) {
         // Solid layer of pseudo-random characters. The image is conveyed purely 
         // by the character's color/opacity during rendering.
         const hash = (x * 73856093 ^ y * 19349663) >>> 0;
@@ -1166,6 +1165,7 @@ export async function runPipeline(img, params) {
     multiscale, multiscaleBoost,
     saliencyAware, saliencyBoost,
     bgTransparent,
+    dataFlood,
   } = params;
 
   const { data: rgba, w: srcW, h: srcH } = img;
@@ -1285,7 +1285,7 @@ export async function runPipeline(img, params) {
       }
     }
 
-    charGrid = brightnessToChars(brightForChars, gridCols, rows, chars, invert, edgeMag, fullResData);
+    charGrid = brightnessToChars(brightForChars, gridCols, rows, chars, invert, edgeMag, fullResData, dataFlood);
   }
 
   if (!showMask && hasAlpha) {
