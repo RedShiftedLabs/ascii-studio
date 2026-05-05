@@ -31,8 +31,16 @@ export const THEMES = {
   ice: { bg: '#020810', fg: '#a8d8f0', colour: false, label: 'Ice Blue CRT' },
   sepia: { bg: '#1a1209', fg: '#c8a97a', colour: false, label: 'Vintage Sepia' },
   rose: { bg: '#0d0508', fg: '#e8a0b4', colour: false, label: 'Rose Terminal' },
+  crimson: { bg: '#0f0000', fg: '#ff2a2a', colour: false, label: 'Crimson Red' },
+  cyberpunk: { bg: '#050014', fg: '#00ffff', colour: false, label: 'Cyberpunk Cyan' },
+  synthwave: { bg: '#120024', fg: '#ff00a0', colour: false, label: 'Synthwave Pink' },
+  nord: { bg: '#2e3440', fg: '#88c0d0', colour: false, label: 'Nordic Blue' },
+  hacker: { bg: '#000000', fg: '#39ff14', colour: false, label: 'Neon Hacker' },
+  paper: { bg: '#f4f4f0', fg: '#222222', colour: false, label: 'Ink on Paper' },
   colour: { bg: '#0a0a0a', fg: '#ffffff', colour: true, label: 'Full Colour' },
   colour_amber: { bg: '#0f0900', fg: '#ffb347', colour: true, label: 'Colour Warm' },
+  colour_cool: { bg: '#020810', fg: '#a8d8f0', colour: true, label: 'Colour Cool' },
+  colour_light: { bg: '#f0f0f0', fg: '#000000', colour: true, label: 'Colour Light' },
 };
 
 const _densityCache = new Map();
