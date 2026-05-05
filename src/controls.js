@@ -2,7 +2,7 @@ import { THEMES, PORTRAIT_BINARY_DEFAULTS, RAW_CHARSETS } from './engine.js';
 
 export const DEFAULT_PARAMS = {
   cols: 120,
-  charset: 'full',
+  charset: 'common',
   charAspect: 0.45,
   sharpen: 0.30,
   contrast: 1.20,
@@ -19,17 +19,17 @@ export const DEFAULT_PARAMS = {
   attenuation: 0.70,
   vignette: 0.40,
   grain: 0.05,
-  theme: 'noir',
+  theme: 'colour',
   bgHex: '#0a0a0a',
   bgTransparent: false,
-  fgHex: '#c8c8c8',
-  colourMode: false,
+  fgHex: '#ffffff',
+  colourMode: true,
   fontSize: 6.0,
-  verticalGap: 1.15,
+  verticalGap: 1.10,
   horizontalGap: 0.30,
   linkGaps: false,
-  outputFont: "'Courier New',Courier,monospace",
-  saliencyAware: false,
+  outputFont: "'JetBrains Mono',monospace",
+  saliencyAware: true,
   saliencyBoost: 0.60,
 };
 
@@ -42,7 +42,7 @@ export function initControls(onChange) {
     opt.value = k; opt.textContent = v.label;
     themeSelect.appendChild(opt);
   }
-  themeSelect.value = 'noir';
+  themeSelect.value = 'colour';
 
   function bindSlider(id, key, fmt = v => parseFloat(v).toFixed(2)) {
     const el = document.getElementById(id);
