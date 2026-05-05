@@ -544,22 +544,41 @@ export function brightnessToChars(brightness, w, h, chars, invert = false, edgeM
     return isBinary ? cleanupBinaryGrid(grid, w, h) : grid;
   }
 
+  const bayer4x4 = [
+    [ 0,  8,  2, 10],
+    [12,  4, 14,  6],
+    [ 3, 11,  1,  9],
+    [15,  7, 13,  5]
+  ];
+
   const grid = [];
   for (let y = 0; y < h; y++) {
     const row = [];
     for (let x = 0; x < w; x++) {
       let norm = brightness[y * w + x] / 255;
       if (invert) norm = 1 - norm;
-      if (isNumbers) {
-        if (norm < 0.06) { row.push(' '); }
-        else {
-          const curved = Math.pow((norm - 0.06) / 0.94, 0.92);
-          row.push(chars[Math.max(0, Math.min(n, Math.round(curved * n)))]);
-        }
+
+      // Fractional index
+      let floatIndex;
+      if (isNumbers && norm < 0.06) {
+        row.push(' ');
+        continue;
+      } else if (isNumbers) {
+        const curved = Math.pow((norm - 0.06) / 0.94, 0.92);
+        floatIndex = curved * n;
       } else {
         const curved = Math.pow(norm, 0.92);
-        row.push(chars[Math.max(0, Math.min(n, Math.round(curved * n)))]);
+        floatIndex = curved * n;
       }
+
+      const baseIndex = Math.floor(floatIndex);
+      const fraction = floatIndex - baseIndex;
+      const threshold = (bayer4x4[y % 4][x % 4] + 0.5) / 16.0;
+
+      // If the fractional part exceeds the bayer threshold, jump to the next character
+      const charIndex = baseIndex + (fraction > threshold ? 1 : 0);
+      
+      row.push(chars[Math.max(0, Math.min(n, charIndex))]);
     }
     grid.push(row);
   }
