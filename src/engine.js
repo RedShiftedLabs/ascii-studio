@@ -559,15 +559,10 @@ export function brightnessToChars(brightness, w, h, chars, invert = false, edgeM
       if (invert) norm = 1 - norm;
 
       if (isBinary || isNumbers) {
-        const bayerThresh = (bayer4x4[y % 4][x % 4] + 0.5) / 16.0;
-        // Map brightness to a probability of drawing the character vs space
-        if (norm > bayerThresh * 0.9) { 
-          // Pseudo-random spatial hash to select a character from the pool
-          const hash = (x * 73856093 ^ y * 19349663) >>> 0;
-          row.push(stripped[hash % stripped.length]);
-        } else {
-          row.push(' ');
-        }
+        // Solid layer of pseudo-random characters. The image is conveyed purely 
+        // by the character's color/opacity during rendering.
+        const hash = (x * 73856093 ^ y * 19349663) >>> 0;
+        row.push(stripped[hash % stripped.length]);
       } else {
         const curved = Math.pow(norm, 0.92);
         let floatIndex = curved * n;
