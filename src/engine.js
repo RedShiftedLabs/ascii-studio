@@ -158,85 +158,6 @@ export function measureCharDensity(chars, size = 16) {
   return sorted;
 }
 
-function _makeLCG(seed = 1337) {
-  let s = seed >>> 0;
-  return () => {
-    s = (Math.imul(1664525, s) + 1013904223) >>> 0;
-    return s / 0xFFFFFFFF;
-  };
-}
-
-export function generateOpacityFill(brightness, w, h, chars, invert = false, seed = 42) {
-  const pool = chars.replace(/\s/g, ''); 
-  const rng = _makeLCG(seed);
-
-  const grid = [];
-  for (let y = 0; y < h; y++) {
-    const row = [];
-    for (let x = 0; x < w; x++) {
-      row.push(pool[Math.floor(rng() * pool.length)]);
-    }
-    grid.push(row);
-  }
-
-  const processedBright = retinexNormalization(brightness, w, h);
-
-  const { gx, gy } = sobel(processedBright, w, h);
-  const edgeMag = new Float32Array(w * h);
-  let maxM = 0;
-  for (let i = 0; i < edgeMag.length; i++) {
-    edgeMag[i] = Math.sqrt(gx[i] * gx[i] + gy[i] * gy[i]);
-    if (edgeMag[i] > maxM) maxM = edgeMag[i];
-  }
-  if (maxM > 0) for (let i = 0; i < edgeMag.length; i++) edgeMag[i] /= maxM;
-
-  const localContrast = new Float32Array(w * h);
-  let maxLC = 0;
-  const r = 3;
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      let sum = 0, sumSq = 0, count = 0;
-      for (let dy = -r; dy <= r; dy++) {
-        const yy = y + dy;
-        if (yy < 0 || yy >= h) continue;
-        for (let dx = -r; dx <= r; dx++) {
-          const xx = x + dx;
-          if (xx < 0 || xx >= w) continue;
-          const v = processedBright[yy * w + xx];
-          sum += v; sumSq += v * v; count++;
-        }
-      }
-      const mean = sum / count;
-      const std = Math.sqrt(Math.max(0, sumSq / count - mean * mean));
-      localContrast[y * w + x] = std;
-      if (std > maxLC) maxLC = std;
-    }
-  }
-  if (maxLC > 0) for (let i = 0; i < localContrast.length; i++) localContrast[i] /= maxLC;
-
-  const sorted = Array.from(processedBright).sort((a, b) => a - b);
-  const lo = sorted[Math.floor(sorted.length * 0.02)];
-  const hi = sorted[Math.floor(sorted.length * 0.98)];
-  const range = hi - lo || 1;
-
-  const opacities = new Float32Array(w * h);
-  for (let i = 0; i < w * h; i++) {
-    let luma = Math.max(0, Math.min(1, (processedBright[i] - lo) / range));
-    if (invert) luma = 1 - luma;
-
-    let t = luma * luma * (3 - 2 * luma);
-    t = t * t * (3 - 2 * t);
-
-    const edgeBoost = edgeMag[i] * 0.5;
-    const detailBoost = localContrast[i] * 0.25;
-
-    let opacity = t + edgeBoost + detailBoost;
-    opacities[i] = Math.min(1, Math.max(0.02, opacity));
-  }
-
-  return { charGrid: grid, opacities };
-}
-
 
 export function loadImageFromFile(file) {
   return new Promise((resolve, reject) => {
@@ -624,10 +545,10 @@ export function brightnessToChars(brightness, w, h, chars, invert = false, edgeM
   }
 
   const bayer4x4 = [
-    [ 0,  8,  2, 10],
-    [12,  4, 14,  6],
-    [ 3, 11,  1,  9],
-    [15,  7, 13,  5]
+    [0, 8, 2, 10],
+    [12, 4, 14, 6],
+    [3, 11, 1, 9],
+    [15, 7, 13, 5]
   ];
 
   const grid = [];
@@ -637,27 +558,25 @@ export function brightnessToChars(brightness, w, h, chars, invert = false, edgeM
       let norm = brightness[y * w + x] / 255;
       if (invert) norm = 1 - norm;
 
-      // Fractional index
-      let floatIndex;
-      if (isNumbers && norm < 0.06) {
-        row.push(' ');
-        continue;
-      } else if (isNumbers) {
-        const curved = Math.pow((norm - 0.06) / 0.94, 0.92);
-        floatIndex = curved * n;
+      if (isBinary || isNumbers) {
+        const bayerThresh = (bayer4x4[y % 4][x % 4] + 0.5) / 16.0;
+        // Map brightness to a probability of drawing the character vs space
+        if (norm > bayerThresh * 0.9) { 
+          // Pseudo-random spatial hash to select a character from the pool
+          const hash = (x * 73856093 ^ y * 19349663) >>> 0;
+          row.push(stripped[hash % stripped.length]);
+        } else {
+          row.push(' ');
+        }
       } else {
         const curved = Math.pow(norm, 0.92);
-        floatIndex = curved * n;
+        let floatIndex = curved * n;
+        const baseIndex = Math.floor(floatIndex);
+        const fraction = floatIndex - baseIndex;
+        const threshold = (bayer4x4[y % 4][x % 4] + 0.5) / 16.0;
+        const charIndex = baseIndex + (fraction > threshold ? 1 : 0);
+        row.push(chars[Math.max(0, Math.min(n, charIndex))]);
       }
-
-      const baseIndex = Math.floor(floatIndex);
-      const fraction = floatIndex - baseIndex;
-      const threshold = (bayer4x4[y % 4][x % 4] + 0.5) / 16.0;
-
-      // If the fractional part exceeds the bayer threshold, jump to the next character
-      const charIndex = baseIndex + (fraction > threshold ? 1 : 0);
-      
-      row.push(chars[Math.max(0, Math.min(n, charIndex))]);
     }
     grid.push(row);
   }
@@ -850,9 +769,9 @@ async function _computeNeuralSaliency(rgba, srcW, srcH, cols, rows) {
         for (let y = 1; y < rows - 1; y++) {
           for (let x = 1; x < cols - 1; x++) {
             tmp[y * cols + x] = (
-              combined[(y-1)*cols+x-1] + combined[(y-1)*cols+x]*2 + combined[(y-1)*cols+x+1] +
-              combined[y*cols+x-1]*2     + combined[y*cols+x]*4     + combined[y*cols+x+1]*2 +
-              combined[(y+1)*cols+x-1] + combined[(y+1)*cols+x]*2 + combined[(y+1)*cols+x+1]
+              combined[(y - 1) * cols + x - 1] + combined[(y - 1) * cols + x] * 2 + combined[(y - 1) * cols + x + 1] +
+              combined[y * cols + x - 1] * 2 + combined[y * cols + x] * 4 + combined[y * cols + x + 1] * 2 +
+              combined[(y + 1) * cols + x - 1] + combined[(y + 1) * cols + x] * 2 + combined[(y + 1) * cols + x + 1]
             ) / 16;
           }
         }
@@ -902,7 +821,7 @@ function _computeGradientSaliency(rgba, srcW, srcH, cols, rows) {
       let sum = 0, sumSq = 0, count = 0;
       for (let dy = -2; dy <= 2; dy++) {
         for (let dx = -2; dx <= 2; dx++) {
-          const v = small[(y+dy) * cols + (x+dx)];
+          const v = small[(y + dy) * cols + (x + dx)];
           sum += v; sumSq += v * v; count++;
         }
       }
@@ -1361,26 +1280,17 @@ export async function runPipeline(img, params) {
       };
     }
 
-    const isOpacityFill = strippedChars === '01' || strippedChars === '10' || /^[0-9]+$/.test(strippedChars);
-
-    if (isOpacityFill) {
-      const seed = gridCols * rows + srcW * 31 + srcH * 17;
-      const result = generateOpacityFill(bright, gridCols, rows, chars, invert, seed);
-      charGrid = result.charGrid;
-      opacities = result.opacities;
-    } else {
-      let brightForChars = processedBright;
-      if (dither && !fullResData) {
-        brightForChars = floydSteinberg(processedBright, gridCols, rows, chars.length);
-      }
-      if (attenuation > 0) {
-        for (let i = 0; i < brightForChars.length; i++) {
-          brightForChars[i] = Math.max(0, Math.min(255, brightForChars[i] * (1 - attenuation * 0.5)));
-        }
-      }
-
-      charGrid = brightnessToChars(brightForChars, gridCols, rows, chars, invert, edgeMag, fullResData);
+    let brightForChars = processedBright;
+    if (dither && !fullResData) {
+      brightForChars = floydSteinberg(processedBright, gridCols, rows, chars.length);
     }
+    if (attenuation > 0) {
+      for (let i = 0; i < brightForChars.length; i++) {
+        brightForChars[i] = Math.max(0, Math.min(255, brightForChars[i] * (1 - attenuation * 0.5)));
+      }
+    }
+
+    charGrid = brightnessToChars(brightForChars, gridCols, rows, chars, invert, edgeMag, fullResData);
   }
 
   if (!showMask && hasAlpha) {
