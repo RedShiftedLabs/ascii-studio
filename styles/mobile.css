@@ -405,6 +405,16 @@
   .sheet-btn-icon {
     font-size: 20px;
     line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+  }
+
+  .sheet-btn-icon svg {
+    width: 20px;
+    height: 20px;
   }
 
   .sheet-btn:active {
