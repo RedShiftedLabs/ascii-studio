@@ -20,8 +20,10 @@ import {
   renderBlockify,
   applyCRTPostProcessing,
 } from './effects.js';
+import { isWebGPUSupported, WebGPURenderer } from './webgpu.js';
 
 let currentImg = null;
+let currentSourceElement = null;
 let lastResult = null;
 let lastParams = null;
 let lastExportCanvas = null;
@@ -30,13 +32,55 @@ let webcamStream = null;
 let webcamVideo = null;
 let webcamAnimId = null;
 
-export function setCurrentImage(img) { currentImg = img; }
+let webgpuRenderer = null;
+let webgpuCanvas = null;
+let webgpuAvailable = false;
+let useWebGPU = true;
+
+export async function initWebGPU() {
+  if (!isWebGPUSupported()) {
+    webgpuAvailable = false;
+    return false;
+  }
+  try {
+    if (!webgpuCanvas) {
+      webgpuCanvas = document.createElement('canvas');
+    }
+    webgpuRenderer = new WebGPURenderer(webgpuCanvas);
+    const ok = await webgpuRenderer.init();
+    webgpuAvailable = ok;
+    return ok;
+  } catch (err) {
+    console.warn('WebGPU init exception, falling back:', err);
+    webgpuAvailable = false;
+    return false;
+  }
+}
+
+export function isWebGPUActive() {
+  return webgpuAvailable && useWebGPU;
+}
+
+export function setUseWebGPU(enabled) {
+  useWebGPU = !!enabled;
+}
+
+export function getRendererType() {
+  return isWebGPUActive() ? 'webgpu' : 'canvas2d';
+}
+
+export function setCurrentImage(img, element = null) {
+  currentImg = img;
+  currentSourceElement = element;
+}
+
 export function getCurrentImage() { return currentImg; }
 
 export async function loadFile(file) {
   stopWebcam();
   const imgEl = await loadImageFromFile(file);
   currentImg = imageToRGBA(imgEl);
+  currentSourceElement = imgEl;
   return currentImg;
 }
 
@@ -59,6 +103,7 @@ export async function startWebcam(onFrame) {
   });
 
   currentImg = webcamVideo;
+  currentSourceElement = webcamVideo;
 
   const loop = () => {
     if (!webcamStream) return;
@@ -102,14 +147,42 @@ function _buildOpts(params = {}) {
   };
 }
 
+function _rgbaToCanvas(img) {
+  const c = document.createElement('canvas');
+  c.width = img.w;
+  c.height = img.h;
+  const ctx = c.getContext('2d');
+  ctx.putImageData(img.data, 0, 0);
+  return c;
+}
+
 export async function render(params) {
-  if (!currentImg) throw new Error('No image loaded');
+  if (!currentImg && !currentSourceElement) throw new Error('No image loaded');
   const enriched = _buildOpts(params);
   lastParams = enriched;
 
   const mode = enriched.effectMode || 'ascii';
 
   let canvas;
+
+  // 1. WebGPU Accelerated ASCII Rendering (60 FPS GPU Pipeline)
+  if (mode === 'ascii' && isWebGPUActive() && webgpuRenderer) {
+    try {
+      const source = currentSourceElement || (currentImg ? _rgbaToCanvas(currentImg) : null);
+      if (source) {
+        const ok = webgpuRenderer.render(source, enriched);
+        if (ok) {
+          canvas = webgpuCanvas;
+          lastExportCanvas = canvas;
+          return canvas;
+        }
+      }
+    } catch (gpuErr) {
+      console.warn('WebGPU render error, falling back to Canvas 2D:', gpuErr);
+    }
+  }
+
+  // 2. Generative Effects & Canvas 2D Engine
   if (mode === 'dithering') {
     canvas = renderDithering(currentImg, enriched);
   } else if (mode === 'halftone') {
@@ -149,7 +222,7 @@ export async function render(params) {
 
 /* ── Canvas-based export (WYSIWYG — matches preview exactly) ── */
 
-function _getExportCanvas(scaleFactor = 2) {
+async function _getExportCanvas(scaleFactor = 2) {
   if (!lastParams) return null;
   const mode = lastParams.effectMode || 'ascii';
 
@@ -157,7 +230,11 @@ function _getExportCanvas(scaleFactor = 2) {
     return lastExportCanvas;
   }
 
+  if (!lastResult && currentImg) {
+    lastResult = await runPipeline(currentImg, lastParams);
+  }
   if (!lastResult) return null;
+
   const exportOpts = {
     rows: lastResult.rows,
     cols: lastResult.cols,
@@ -181,21 +258,33 @@ function _getExportCanvas(scaleFactor = 2) {
 
 /* ── Text-format exports (SVG / HTML / TXT) ── */
 
-export function exportHTML() {
-  if (!lastResult || !lastParams) return null;
+export async function exportHTML() {
+  if (!lastParams) return null;
+  if (!lastResult && currentImg) {
+    lastResult = await runPipeline(currentImg, lastParams);
+  }
+  if (!lastResult) return null;
   return renderToHTML(lastResult.charGrid, lastResult.brightness, lastResult.colourData, {
     rows: lastResult.rows, cols: lastResult.cols, ...lastParams,
   }, lastResult.opacities || null);
 }
 
-export function exportSVG() {
-  if (!lastResult || !lastParams) return null;
+export async function exportSVG() {
+  if (!lastParams) return null;
+  if (!lastResult && currentImg) {
+    lastResult = await runPipeline(currentImg, lastParams);
+  }
+  if (!lastResult) return null;
   return renderToSVG(lastResult.charGrid, lastResult.brightness, lastResult.colourData, {
     rows: lastResult.rows, cols: lastResult.cols, ...lastParams,
   }, lastResult.opacities || null);
 }
 
-export function exportTXT() {
+export async function exportTXT() {
+  if (!lastParams) return null;
+  if (!lastResult && currentImg) {
+    lastResult = await runPipeline(currentImg, lastParams);
+  }
   if (!lastResult) return null;
   return renderToTxt(lastResult.charGrid);
 }
@@ -203,7 +292,7 @@ export function exportTXT() {
 /* ── Raster exports (PNG / PDF from canvas — true WYSIWYG) ── */
 
 export async function exportPNG() {
-  const canvas = _getExportCanvas(3);
+  const canvas = await _getExportCanvas(3);
   if (!canvas) return null;
   return new Promise((resolve, reject) => {
     canvas.toBlob(blob => {
@@ -218,7 +307,7 @@ export async function exportPDF() {
     await _loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
   }
   const { jsPDF } = window.jspdf;
-  const canvas = _getExportCanvas(3);
+  const canvas = await _getExportCanvas(3);
   if (!canvas) return null;
 
   const imgData = canvas.toDataURL('image/png');
@@ -251,9 +340,10 @@ export function triggerDownload(blob, filename) {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 
 export function triggerDownloadText(text, filename, mime = 'text/plain') {
-  triggerDownload(new Blob([text], { type: mime }), filename);
+  const blob = new Blob([text], { type: mime });
+  triggerDownload(blob, filename);
 }

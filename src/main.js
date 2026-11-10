@@ -11,10 +11,48 @@ import {
   startWebcam,
   stopWebcam,
   isWebcamActive,
+  initWebGPU,
+  isWebGPUActive,
+  setUseWebGPU,
+  getRendererType,
   triggerDownload,
   triggerDownloadText,
 } from './renderer.js';
 import { generateSampleImage } from './samples.js';
+
+function _updateGpuBadge() {
+  const badge = document.getElementById('gpu-badge');
+  const txt = document.getElementById('gpu-status-text');
+  if (!badge || !txt) return;
+  const isGpu = isWebGPUActive();
+  if (isGpu) {
+    badge.classList.remove('fallback');
+    txt.textContent = 'WebGPU ⚡ 60 FPS';
+    badge.title = 'WebGPU Hardware Accelerated (Click to toggle Canvas 2D fallback)';
+  } else {
+    badge.classList.add('fallback');
+    txt.textContent = 'Canvas 2D';
+    badge.title = 'Canvas 2D Software Fallback (Click to try WebGPU)';
+  }
+}
+
+initWebGPU().then(() => {
+  _updateGpuBadge();
+});
+
+const gpuBadge = document.getElementById('gpu-badge');
+if (gpuBadge) {
+  gpuBadge.addEventListener('click', async () => {
+    const nextState = !isWebGPUActive();
+    setUseWebGPU(nextState);
+    if (nextState) {
+      await initWebGPU();
+    }
+    _updateGpuBadge();
+    toast(nextState && isWebGPUActive() ? 'WebGPU ⚡ Enabled (60 FPS)' : 'Canvas 2D Fallback Enabled');
+    scheduleRender();
+  });
+}
 
 function _updateMLBadge() {
   const badge = document.getElementById('ml-saliency-badge');
@@ -315,22 +353,22 @@ window.addEventListener('resize', () => {
 btnRender.addEventListener('click', doRender);
 
 document.getElementById('btn-html').addEventListener('click', async () => {
-  const htmlStr = exportHTML();
+  const htmlStr = await exportHTML();
   if (!htmlStr) return toast('HTML export only available for ASCII mode');
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>ASCII Art</title></head><body style="margin:0;background:${params.bgHex};">${htmlStr}</body></html>`;
   triggerDownloadText(html, 'ascii_art.html', 'text/html');
   toast('HTML saved ✓');
 });
 
-document.getElementById('btn-txt').addEventListener('click', () => {
-  const txt = exportTXT();
+document.getElementById('btn-txt').addEventListener('click', async () => {
+  const txt = await exportTXT();
   if (!txt) return toast('TXT export only available for ASCII mode');
   triggerDownloadText(txt, 'ascii_art.txt');
   toast('TXT saved ✓');
 });
 
-document.getElementById('btn-svg').addEventListener('click', () => {
-  const svg = exportSVG();
+document.getElementById('btn-svg').addEventListener('click', async () => {
+  const svg = await exportSVG();
   if (!svg) return toast('SVG export only available for ASCII mode');
   triggerDownloadText(svg, 'ascii_art.svg', 'image/svg+xml');
   toast('SVG saved ✓');

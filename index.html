@@ -335,7 +335,7 @@
                 <line x1="12" y1="17" x2="12" y2="21" />
               </svg>
             </div>
-            <span class="section-title">CRT & VHS Effects</span>
+            <span class="section-title">CRT & Noise Floor</span>
             <span class="section-chevron">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
                 <polyline points="9 18 15 12 9 6" />
@@ -343,6 +343,11 @@
             </span>
           </div>
           <div class="section-body">
+            <div class="ctrl">
+              <div class="ctrl-label">Colored Static Noise <span class="ctrl-val" id="val-static_noise">0.35</span></div>
+              <input type="range" id="static_noise" min="0.0" max="1.0" step="0.05" value="0.35"
+                title="Grainrad matrix static: fills dark regions with faint chromatic character noise instead of empty black." />
+            </div>
             <div class="toggle-row">
               <input type="checkbox" id="crt_scanlines" />
               <label for="crt_scanlines">CRT Scanlines</label>
@@ -528,6 +533,10 @@
             <span class="webcam-dot"></span>
             Webcam
           </button>
+          <div id="gpu-badge" class="gpu-pill" title="Hardware acceleration engine (Click to toggle)">
+            <span class="gpu-dot"></span>
+            <span id="gpu-status-text">WebGPU ⚡</span>
+          </div>
           <div id="zoom-controls"
             style="display:none; align-items:center; gap:2px; background:var(--surface-3); border:1px solid var(--border-2); padding:2px; border-radius:var(--r-sm); margin-right:4px;">
             <button id="btn-zoom-out" class="btn btn-ghost" title="Zoom Out" style="padding:4px 6px;">

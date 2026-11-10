@@ -36,6 +36,7 @@ export const DEFAULT_PARAMS = {
   dataFlood: false,
   customCharset: '',
   // Grainrad effects & retro parameters
+  staticNoise: 0.35,
   palette: 'gameboy',
   ditherMethod: 'bayer8x8',
   crtScanlines: false,
@@ -221,6 +222,7 @@ export function initControls(onChange) {
   bindCheckbox('data_flood', 'dataFlood');
 
   // Grainrad Retro & Post-Processing Controls
+  bindSlider('static_noise', 'staticNoise');
   bindSelect('dither_method', 'ditherMethod');
   bindCheckbox('crt_scanlines', 'crtScanlines');
   bindCheckbox('chromatic_aberration', 'chromaticAberration');
@@ -397,12 +399,12 @@ export function initControls(onChange) {
   updateGammaWarn();
 
   const TONE_PRESETS = {
-    default: { contrast: 1.20, gamma: 0.80, exposure: 1.0, edgeWeight: 0.25, sharpen: 0.30, equalize: true },
-    high_contrast: { contrast: 2.0, gamma: 0.70, exposure: 1.1, edgeWeight: 0.50, sharpen: 0.50, equalize: true },
-    muted: { contrast: 0.80, gamma: 1.20, exposure: 1.0, edgeWeight: 0.10, sharpen: 0.10, equalize: false },
-    dark: { contrast: 1.50, gamma: 0.50, exposure: 0.80, edgeWeight: 0.80, sharpen: 0.60, equalize: true },
-    bright: { contrast: 1.10, gamma: 1.50, exposure: 1.30, edgeWeight: 0.20, sharpen: 0.30, equalize: false },
-    portrait_binary: PORTRAIT_BINARY_DEFAULTS,
+    default: { contrast: 1.20, gamma: 0.80, exposure: 1.0, edgeWeight: 0.25, sharpen: 0.30, equalize: true, staticNoise: 0.35 },
+    high_contrast: { contrast: 2.0, gamma: 0.70, exposure: 1.1, edgeWeight: 0.50, sharpen: 0.50, equalize: true, staticNoise: 0.20 },
+    muted: { contrast: 0.80, gamma: 1.20, exposure: 1.0, edgeWeight: 0.10, sharpen: 0.10, equalize: false, staticNoise: 0.40 },
+    dark: { contrast: 1.50, gamma: 0.50, exposure: 0.80, edgeWeight: 0.80, sharpen: 0.60, equalize: true, staticNoise: 0.50 },
+    bright: { contrast: 1.10, gamma: 1.50, exposure: 1.30, edgeWeight: 0.20, sharpen: 0.30, equalize: false, staticNoise: 0.10 },
+    portrait_binary: { ...PORTRAIT_BINARY_DEFAULTS, staticNoise: 0.05 },
   };
 
   const presetDropdown = document.getElementById('tone_preset');
@@ -412,9 +414,9 @@ export function initControls(onChange) {
       if (!preset) return;
       Object.assign(state, preset);
 
-      ['contrast', 'gamma', 'exposure', 'edgeWeight', 'sharpen', 'cols', 'charAspect', 'fontSize', 'attenuation', 'vignette', 'grain', 'saliencyBoost'].forEach(k => {
+      ['contrast', 'gamma', 'exposure', 'edgeWeight', 'sharpen', 'cols', 'charAspect', 'fontSize', 'attenuation', 'vignette', 'grain', 'saliencyBoost', 'staticNoise'].forEach(k => {
         if (preset[k] === undefined) return;
-        const domId = k === 'edgeWeight' ? 'edge_weight' : k === 'saliencyBoost' ? 'ml_saliency_boost' : k === 'charAspect' ? 'char_aspect' : k === 'fontSize' ? 'font_size' : k;
+        const domId = k === 'edgeWeight' ? 'edge_weight' : k === 'saliencyBoost' ? 'ml_saliency_boost' : k === 'charAspect' ? 'char_aspect' : k === 'fontSize' ? 'font_size' : k === 'staticNoise' ? 'static_noise' : k;
         const el = document.getElementById(domId);
         if (el) {
           el.value = preset[k];
@@ -478,6 +480,7 @@ export function initControls(onChange) {
         font_size: DEFAULT_PARAMS.fontSize,
         vertical_gap: DEFAULT_PARAMS.verticalGap,
         horizontal_gap: DEFAULT_PARAMS.horizontalGap,
+        static_noise: DEFAULT_PARAMS.staticNoise,
       };
 
       for (const [id, val] of Object.entries(resetVals)) {

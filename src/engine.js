@@ -486,7 +486,15 @@ export function cleanupBinaryGrid(grid, w, h) {
   return newGrid;
 }
 
-export function brightnessToChars(brightness, w, h, chars, invert = false, edgeMag = null, fullResData = null, dataFlood = false, gradients = null) {
+export function cellHash(x, y, seed = 0) {
+  let h = (Math.floor(x) * 374761393 + Math.floor(y) * 668265263 + seed * 951274213) ^ 0x5bf03635;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
+export const NOISE_GLYPHS = ['?', 't', '!', '[', ']', '~', 'j', '{', '}', '\\', '/', '1', 'v', 'x', 'u', 'n', 'r', '(', ')', '-', '+', ';', '<', '>', "'", '"', '`', ':'];
+
+function brightnessToChars(brightness, w, h, chars, invert = false, edgeMag = null, fullResData = null, dataFlood = false, gradients = null, staticNoise = 0.35) {
   const n = chars.length - 1;
   const stripped = chars.replace(/\s/g, '');
 
@@ -543,7 +551,14 @@ export function brightnessToChars(brightness, w, h, chars, invert = false, edgeM
             const threshold = (bayer4x4[y % 4][x % 4] + 0.5) / 16.0;
             charIndex = baseIndex + (fraction > threshold ? 1 : 0);
           }
-          row.push(chars[Math.max(0, Math.min(n, charIndex))]);
+          let ch = chars[Math.max(0, Math.min(n, charIndex))];
+          // Faint Colored Static Noise / Noise Floor (Grainrad Aesthetic)
+          if ((ch === ' ' || norm < 0.22) && staticNoise > 0.01) {
+            const pick = cellHash(x, y, 7);
+            row.push(NOISE_GLYPHS[Math.floor(pick * NOISE_GLYPHS.length)]);
+          } else {
+            row.push(ch);
+          }
         }
       }
     }
@@ -873,6 +888,8 @@ export function renderToCanvas(charGrid, brightness, colourData, opts = {}, opac
 
   const isLightBg = (br * 0.299 + bg * 0.587 + bb * 0.114) > 128;
 
+  const staticNoise = opts.staticNoise !== undefined ? opts.staticNoise : 0.35;
+
   for (let y = 0; y < rows; y++) {
     for (let x = 0; x < cols; x++) {
       const ch = charGrid[y][x];
@@ -880,6 +897,7 @@ export function renderToCanvas(charGrid, brightness, colourData, opts = {}, opac
 
       const idx = y * cols + x;
       const luma = brightness ? (brightness[idx] / 255) : 1;
+      const isNoise = (luma < 0.24) && (staticNoise > 0.01);
 
       let pr, pg, pb;
       if (colourMode && colourData) {
@@ -895,7 +913,22 @@ export function renderToCanvas(charGrid, brightness, colourData, opts = {}, opac
       }
 
       let alpha = 1;
-      if (opacities) {
+      if (isNoise) {
+        // Warm copper, terracotta, sage, and dusky slate chromatic noise (Grainrad Aesthetic)
+        const hr = cellHash(x, y, 1);
+        const hg = cellHash(x, y, 2);
+        const hb = cellHash(x, y, 3);
+        const nr = Math.round(55 + hr * 85);
+        const ng = Math.round(40 + hg * 65);
+        const nb = Math.round(35 + hb * 65);
+
+        pr = Math.round(pr * 0.2 + nr * 0.8);
+        pg = Math.round(pg * 0.2 + ng * 0.8);
+        pb = Math.round(pb * 0.2 + nb * 0.8);
+
+        const baseAlpha = 0.22 + cellHash(x, y, 4) * 0.32;
+        alpha = Math.min(0.85, baseAlpha * (staticNoise * 1.8));
+      } else if (opacities) {
         alpha = opacities[idx];
       } else if (attenuation > 0) {
         const depth = isLightBg ? (1 - luma) : luma;
@@ -931,6 +964,7 @@ export function renderToHTML(charGrid, brightness, colourData, opts = {}, opacit
 
   const isLightBg = (br * 0.299 + bg * 0.587 + bb * 0.114) > 128;
 
+  const staticNoise = opts.staticNoise !== undefined ? opts.staticNoise : 0.35;
   const lines = [];
   for (let y = 0; y < rows; y++) {
     const parts = [];
@@ -938,6 +972,7 @@ export function renderToHTML(charGrid, brightness, colourData, opts = {}, opacit
       const ch = charGrid[y][x];
       const idx = y * cols + x;
       const luma = brightness ? (brightness[idx] / 255) : 1;
+      const isNoise = (luma < 0.24) && (staticNoise > 0.01);
 
       let pr, pg, pb;
       if (colourMode && colourData) {
@@ -951,7 +986,19 @@ export function renderToHTML(charGrid, brightness, colourData, opts = {}, opacit
       }
 
       let alpha = 1;
-      if (opacities) {
+      if (isNoise) {
+        const hr = cellHash(x, y, 1);
+        const hg = cellHash(x, y, 2);
+        const hb = cellHash(x, y, 3);
+        const nr = Math.round(55 + hr * 85);
+        const ng = Math.round(40 + hg * 65);
+        const nb = Math.round(35 + hb * 65);
+        pr = Math.round(pr * 0.2 + nr * 0.8);
+        pg = Math.round(pg * 0.2 + ng * 0.8);
+        pb = Math.round(pb * 0.2 + nb * 0.8);
+        const baseAlpha = 0.22 + cellHash(x, y, 4) * 0.32;
+        alpha = Math.min(0.85, baseAlpha * (staticNoise * 1.8));
+      } else if (opacities) {
         alpha = opacities[idx];
       } else if (attenuation > 0) {
         const depth = isLightBg ? (1 - luma) : luma;
@@ -1005,6 +1052,7 @@ export function renderToSVG(charGrid, brightness, colourData, opts = {}, opaciti
 
   const isLightBg = (br * 0.299 + bg * 0.587 + bb * 0.114) > 128;
 
+  const staticNoise = opts.staticNoise !== undefined ? opts.staticNoise : 0.35;
   for (let y = 0; y < rows; y++) {
     const ty = y * ch + fontSize * 0.85;
     const spans = [];
@@ -1012,6 +1060,7 @@ export function renderToSVG(charGrid, brightness, colourData, opts = {}, opaciti
       const ch_ = charGrid[y][x];
       const idx = y * cols + x;
       const luma = brightness ? (brightness[idx] / 255) : 1;
+      const isNoise = (luma < 0.24) && (staticNoise > 0.01);
 
       let pr, pg, pb;
       if (colourMode && colourData) {
@@ -1025,7 +1074,19 @@ export function renderToSVG(charGrid, brightness, colourData, opts = {}, opaciti
       }
 
       let alpha = 1;
-      if (opacities) {
+      if (isNoise) {
+        const hr = cellHash(x, y, 1);
+        const hg = cellHash(x, y, 2);
+        const hb = cellHash(x, y, 3);
+        const nr = Math.round(55 + hr * 85);
+        const ng = Math.round(40 + hg * 65);
+        const nb = Math.round(35 + hb * 65);
+        pr = Math.round(pr * 0.2 + nr * 0.8);
+        pg = Math.round(pg * 0.2 + ng * 0.8);
+        pb = Math.round(pb * 0.2 + nb * 0.8);
+        const baseAlpha = 0.22 + cellHash(x, y, 4) * 0.32;
+        alpha = Math.min(0.85, baseAlpha * (staticNoise * 1.8));
+      } else if (opacities) {
         alpha = opacities[idx];
       } else if (attenuation > 0) {
         const depth = isLightBg ? (1 - luma) : luma;
@@ -1279,7 +1340,7 @@ export async function runPipeline(img, params) {
       }
     }
 
-    charGrid = brightnessToChars(brightForChars, gridCols, rows, chars, invert, edgeMag, null, false, { gx, gy });
+    charGrid = brightnessToChars(brightForChars, gridCols, rows, chars, invert, edgeMag, null, false, { gx, gy }, params.staticNoise);
     if (charset === 'binary') {
       charGrid = cleanupBinaryGrid(charGrid, gridCols, rows);
     }
@@ -1290,7 +1351,12 @@ export async function runPipeline(img, params) {
     for (let y = 0; y < rows; y++) {
       for (let x = 0; x < gridCols; x++) {
         if (alphaResized[y * gridCols + x] < t) {
-          charGrid[y][x] = ' ';
+          if (!bgTransparent && params.staticNoise && params.staticNoise > 0.01) {
+            const pick = cellHash(x, y, 9);
+            charGrid[y][x] = NOISE_GLYPHS[Math.floor(pick * NOISE_GLYPHS.length)];
+          } else {
+            charGrid[y][x] = ' ';
+          }
         }
       }
     }
