@@ -9,18 +9,86 @@ import {
   THEMES,
 } from './engine.js';
 import { DEFAULT_PARAMS } from './controls.js';
+import {
+  renderDithering,
+  renderHalftone,
+  renderMatrixRain,
+  renderWaveLines,
+  renderPixelSort,
+  renderContour,
+  renderCrosshatch,
+  renderBlockify,
+  applyCRTPostProcessing,
+} from './effects.js';
 
 let currentImg = null;
 let lastResult = null;
 let lastParams = null;
+let lastExportCanvas = null;
+
+let webcamStream = null;
+let webcamVideo = null;
+let webcamAnimId = null;
 
 export function setCurrentImage(img) { currentImg = img; }
 export function getCurrentImage() { return currentImg; }
 
 export async function loadFile(file) {
+  stopWebcam();
   const imgEl = await loadImageFromFile(file);
   currentImg = imageToRGBA(imgEl);
   return currentImg;
+}
+
+export async function startWebcam(onFrame) {
+  if (webcamStream) return webcamVideo;
+  webcamVideo = document.createElement('video');
+  webcamVideo.autoplay = true;
+  webcamVideo.muted = true;
+  webcamVideo.playsInline = true;
+
+  webcamStream = await navigator.mediaDevices.getUserMedia({
+    video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' }
+  });
+  webcamVideo.srcObject = webcamStream;
+  await new Promise(r => {
+    webcamVideo.onloadedmetadata = () => {
+      webcamVideo.play();
+      r();
+    };
+  });
+
+  currentImg = webcamVideo;
+
+  const loop = () => {
+    if (!webcamStream) return;
+    if (webcamVideo.readyState >= 2) {
+      onFrame();
+    }
+    webcamAnimId = requestAnimationFrame(loop);
+  };
+  webcamAnimId = requestAnimationFrame(loop);
+  return webcamVideo;
+}
+
+export function stopWebcam() {
+  if (webcamAnimId) {
+    cancelAnimationFrame(webcamAnimId);
+    webcamAnimId = null;
+  }
+  if (webcamStream) {
+    webcamStream.getTracks().forEach(t => t.stop());
+    webcamStream = null;
+  }
+  if (webcamVideo) {
+    webcamVideo.pause();
+    webcamVideo.srcObject = null;
+    webcamVideo = null;
+  }
+}
+
+export function isWebcamActive() {
+  return !!webcamStream;
 }
 
 function _buildOpts(params = {}) {
@@ -37,24 +105,59 @@ function _buildOpts(params = {}) {
 export async function render(params) {
   if (!currentImg) throw new Error('No image loaded');
   const enriched = _buildOpts(params);
-
-  lastResult = await runPipeline(currentImg, enriched);
   lastParams = enriched;
 
-  return renderToCanvas(
-    lastResult.charGrid,
-    lastResult.brightness,
-    lastResult.colourData,
-    { rows: lastResult.rows, cols: lastResult.cols, ...enriched },
-    lastResult.opacities || null,
-  );
+  const mode = enriched.effectMode || 'ascii';
+
+  let canvas;
+  if (mode === 'dithering') {
+    canvas = renderDithering(currentImg, enriched);
+  } else if (mode === 'halftone') {
+    canvas = renderHalftone(currentImg, enriched);
+  } else if (mode === 'matrixRain') {
+    canvas = renderMatrixRain(currentImg, { ...enriched, time: performance.now() * 0.002 });
+  } else if (mode === 'waveLines') {
+    canvas = renderWaveLines(currentImg, { ...enriched, time: performance.now() * 0.002 });
+  } else if (mode === 'pixelSort') {
+    canvas = renderPixelSort(currentImg, enriched);
+  } else if (mode === 'contour') {
+    canvas = renderContour(currentImg, enriched);
+  } else if (mode === 'crosshatch') {
+    canvas = renderCrosshatch(currentImg, enriched);
+  } else if (mode === 'blockify') {
+    canvas = renderBlockify(currentImg, enriched);
+  } else {
+    // Standard ASCII Studio Engine
+    lastResult = await runPipeline(currentImg, enriched);
+    canvas = renderToCanvas(
+      lastResult.charGrid,
+      lastResult.brightness,
+      lastResult.colourData,
+      { rows: lastResult.rows, cols: lastResult.cols, ...enriched },
+      lastResult.opacities || null,
+    );
+  }
+
+  // Post-processing CRT & Grain overlays
+  if (enriched.crtScanlines || enriched.chromaticAberration || enriched.crtCurve) {
+    applyCRTPostProcessing(canvas, enriched);
+  }
+
+  lastExportCanvas = canvas;
+  return canvas;
 }
 
 /* ── Canvas-based export (WYSIWYG — matches preview exactly) ── */
 
 function _getExportCanvas(scaleFactor = 2) {
-  if (!lastResult || !lastParams) return null;
-  // Render at higher font size for crisp export
+  if (!lastParams) return null;
+  const mode = lastParams.effectMode || 'ascii';
+
+  if (mode !== 'ascii' && lastExportCanvas) {
+    return lastExportCanvas;
+  }
+
+  if (!lastResult) return null;
   const exportOpts = {
     rows: lastResult.rows,
     cols: lastResult.cols,
@@ -62,13 +165,18 @@ function _getExportCanvas(scaleFactor = 2) {
     fontSize: lastParams.fontSize * scaleFactor,
     horizontalGap: (lastParams.horizontalGap !== undefined ? lastParams.horizontalGap : 0.3) * scaleFactor,
   };
-  return renderToCanvas(
+  const canvas = renderToCanvas(
     lastResult.charGrid,
     lastResult.brightness,
     lastResult.colourData,
     exportOpts,
     lastResult.opacities || null,
   );
+
+  if (lastParams.crtScanlines || lastParams.chromaticAberration || lastParams.crtCurve) {
+    applyCRTPostProcessing(canvas, lastParams);
+  }
+  return canvas;
 }
 
 /* ── Text-format exports (SVG / HTML / TXT) ── */
@@ -140,7 +248,9 @@ export function triggerDownload(blob, filename) {
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
+  document.body.appendChild(a);
   a.click();
+  document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 

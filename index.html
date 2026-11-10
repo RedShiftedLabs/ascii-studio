@@ -43,6 +43,21 @@
 
       <div id="controls-scroll">
 
+        <div class="effect-bar-wrap">
+          <div class="ctrl-label" style="margin-bottom: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--accent);">Visual Effect Mode</div>
+          <div class="effect-grid">
+            <button type="button" class="effect-pill active" data-mode="ascii">ASCII</button>
+            <button type="button" class="effect-pill" data-mode="matrixRain">Matrix</button>
+            <button type="button" class="effect-pill" data-mode="dithering">Dithering</button>
+            <button type="button" class="effect-pill" data-mode="halftone">Halftone</button>
+            <button type="button" class="effect-pill" data-mode="waveLines">Wave Lines</button>
+            <button type="button" class="effect-pill" data-mode="pixelSort">Pixel Sort</button>
+            <button type="button" class="effect-pill" data-mode="contour">Contour</button>
+            <button type="button" class="effect-pill" data-mode="crosshatch">Hatching</button>
+            <button type="button" class="effect-pill" data-mode="blockify">Blockify</button>
+          </div>
+        </div>
+
         <div class="section" id="sec-image">
           <div class="section-head">
             <div class="section-icon icon-image">
@@ -132,6 +147,41 @@
                 <div class="ctrl-label">Edge Threshold <span class="ctrl-val" id="val-alpha_threshold">0.50</span></div>
                 <input type="range" id="alpha_threshold" min="0" max="1" step="0.05" value="0.5" />
               </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section" id="sec-palette">
+          <div class="section-head">
+            <div class="section-icon icon-palette" style="background:rgba(255,100,50,0.12);color:#ff7040;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/>
+                <circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/>
+                <circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/>
+                <circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/>
+                <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/>
+              </svg>
+            </div>
+            <span class="section-title">Retro Palettes</span>
+            <span class="section-chevron">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </span>
+          </div>
+          <div class="section-body">
+            <div class="ctrl">
+              <div class="ctrl-label">Hardware Palette</div>
+              <select id="palette" class="select-css"></select>
+              <div id="palette-chips" style="display:flex;gap:4px;margin-top:8px;flex-wrap:wrap;align-items:center;"></div>
+            </div>
+            <div class="ctrl">
+              <div class="ctrl-label">Dither Algorithm</div>
+              <select id="dither_method" class="select-css">
+                <option value="bayer8x8">Ordered Bayer (8×8)</option>
+                <option value="atkinson">Atkinson (Macintosh 1984)</option>
+                <option value="floyd">Floyd-Steinberg (Error Diffusion)</option>
+              </select>
             </div>
           </div>
         </div>
@@ -272,6 +322,38 @@
                 <label>Text</label>
                 <input type="color" id="fg_hex" value="#c8c8c8" />
               </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section" id="sec-crt">
+          <div class="section-head">
+            <div class="section-icon icon-crt" style="background:rgba(0,255,200,0.12);color:#00ffc8;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="3" width="20" height="14" rx="2" />
+                <line x1="8" y1="21" x2="16" y2="21" />
+                <line x1="12" y1="17" x2="12" y2="21" />
+              </svg>
+            </div>
+            <span class="section-title">CRT & VHS Effects</span>
+            <span class="section-chevron">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </span>
+          </div>
+          <div class="section-body">
+            <div class="toggle-row">
+              <input type="checkbox" id="crt_scanlines" />
+              <label for="crt_scanlines">CRT Scanlines</label>
+            </div>
+            <div class="toggle-row">
+              <input type="checkbox" id="chromatic_aberration" />
+              <label for="chromatic_aberration">Chromatic Aberration (RGB Split)</label>
+            </div>
+            <div class="toggle-row">
+              <input type="checkbox" id="crt_curve" />
+              <label for="crt_curve">CRT Screen Curvature & Vignette</label>
             </div>
           </div>
         </div>
@@ -442,6 +524,10 @@
             </svg>
             Open
           </button>
+          <button class="btn btn-ghost" id="btn-webcam" title="Toggle live camera feed">
+            <span class="webcam-dot"></span>
+            Webcam
+          </button>
           <div id="zoom-controls"
             style="display:none; align-items:center; gap:2px; background:var(--surface-3); border:1px solid var(--border-2); padding:2px; border-radius:var(--r-sm); margin-right:4px;">
             <button id="btn-zoom-out" class="btn btn-ghost" title="Zoom Out" style="padding:4px 6px;">
@@ -494,7 +580,13 @@
             </svg>
           </div>
           <p class="dz-main">Drop image here or <span>click to browse</span></p>
-          <p class="dz-sub">PNG · JPG · WEBP · GIF · BMP</p>
+          <p class="dz-sub">PNG · JPG · WEBP · GIF · BMP · Paste from clipboard (Ctrl+V)</p>
+          <div class="dz-samples" style="margin-top:16px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;position:relative;z-index:2;">
+            <span style="font-size:11px;color:var(--text-3);align-self:center;">Try demo:</span>
+            <button type="button" class="btn btn-ghost sample-btn" data-sample="cyberpunk" style="font-size:11px;padding:4px 10px;border-radius:4px;">Cyberpunk</button>
+            <button type="button" class="btn btn-ghost sample-btn" data-sample="statue" style="font-size:11px;padding:4px 10px;border-radius:4px;">Statue</button>
+            <button type="button" class="btn btn-ghost sample-btn" data-sample="waves" style="font-size:11px;padding:4px 10px;border-radius:4px;">Pulsar Waves</button>
+          </div>
         </div>
         <div id="result" style="display:none">
           <div id="result-inner" style="transition: zoom 0.1s ease-out;"></div>

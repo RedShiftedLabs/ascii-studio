@@ -4,10 +4,17 @@ import {
   exportHTML,
   exportPDF,
   exportPNG,
-  exportSVG, exportTXT,
-  loadFile, render,
-  triggerDownload, triggerDownloadText,
+  exportSVG,
+  exportTXT,
+  loadFile,
+  render,
+  startWebcam,
+  stopWebcam,
+  isWebcamActive,
+  triggerDownload,
+  triggerDownloadText,
 } from './renderer.js';
+import { generateSampleImage } from './samples.js';
 
 function _updateMLBadge() {
   const badge = document.getElementById('ml-saliency-badge');
@@ -64,16 +71,84 @@ params = initControls((newParams) => {
 });
 
 fileInput.addEventListener('change', () => onFile(fileInput.files[0]));
-dropzone.addEventListener('click', () => fileInput.click());
-dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('over'); });
-dropzone.addEventListener('dragleave', () => dropzone.classList.remove('over'));
-dropzone.addEventListener('drop', e => {
-  e.preventDefault(); dropzone.classList.remove('over');
-  const f = e.dataTransfer.files[0];
+dropzone.addEventListener('click', (e) => {
+  if (e.target.closest('.sample-btn')) return;
+  fileInput.click();
+});
+
+// Window-wide Drag and Drop
+window.addEventListener('dragover', e => {
+  e.preventDefault();
+  dropzone.classList.add('over');
+});
+window.addEventListener('dragleave', e => {
+  if (!e.relatedTarget) dropzone.classList.remove('over');
+});
+window.addEventListener('drop', e => {
+  e.preventDefault();
+  dropzone.classList.remove('over');
+  const f = e.dataTransfer && e.dataTransfer.files[0];
   if (f && f.type.startsWith('image/')) onFile(f);
 });
 
+// Clipboard Image Paste (Cmd+V / Ctrl+V)
+window.addEventListener('paste', async (e) => {
+  const items = e.clipboardData && e.clipboardData.items;
+  if (!items) return;
+  for (let i = 0; i < items.length; i++) {
+    if (items[i].type.startsWith('image/')) {
+      const file = items[i].getAsFile();
+      if (file) {
+        await onFile(file);
+        toast('Pasted image from clipboard ✓');
+        break;
+      }
+    }
+  }
+});
+
+// Demo Sample Loaders
+document.querySelectorAll('.sample-btn').forEach(btn => {
+  btn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    const type = btn.dataset.sample;
+    const sampleCanvas = generateSampleImage(type, 600);
+    const blob = await new Promise(r => sampleCanvas.toBlob(r, 'image/png'));
+    const sampleFile = new File([blob], `demo_${type}.png`, { type: 'image/png' });
+    await onFile(sampleFile);
+    toast(`Loaded ${type} demo`);
+  });
+});
+
 document.getElementById('btn-open').addEventListener('click', () => fileInput.click());
+
+// Live Webcam Toggle
+const btnWebcam = document.getElementById('btn-webcam');
+if (btnWebcam) {
+  btnWebcam.addEventListener('click', async () => {
+    if (isWebcamActive()) {
+      stopWebcam();
+      btnWebcam.classList.remove('active');
+      btnWebcam.innerHTML = '<span class="webcam-dot"></span> Webcam';
+      setStatus('Webcam stopped', '');
+    } else {
+      try {
+        setStatus('Starting webcam…', 'busy');
+        await startWebcam(() => {
+          if (!isRendering) scheduleRender();
+        });
+        currentFile = { name: 'webcam_stream.png', size: 1024 * 100 };
+        btnWebcam.classList.add('active');
+        btnWebcam.innerHTML = '<span class="webcam-dot rec"></span> Live Cam';
+        setStatus('Webcam active (60 FPS)', 'ok');
+        doRender();
+      } catch (err) {
+        setStatus('Webcam error: ' + err.message, 'err');
+        toast('Could not access camera: ' + err.message);
+      }
+    }
+  });
+}
 
 const AIState = {
   NOT_LOADED: 0,
@@ -134,7 +209,9 @@ document.getElementById('btn-remove-bg').addEventListener('click', async () => {
 
 async function onFile(file) {
   if (!file) return;
+  if (isWebcamActive()) stopWebcam();
   currentFile = file;
+
   const reader = new FileReader();
   reader.onload = e => { thumbImg.src = e.target.result; };
   reader.readAsDataURL(file);
@@ -156,31 +233,30 @@ async function onFile(file) {
 let pendingRender = false;
 
 function scheduleRender() {
-  if (!currentFile) return;
+  if (!currentFile && !isWebcamActive()) return;
   if (isRendering) { pendingRender = true; return; }
   clearTimeout(renderDebounce);
-  renderDebounce = setTimeout(doRender, 300);
+  renderDebounce = setTimeout(doRender, isWebcamActive() ? 16 : 80);
 }
 
 async function doRender() {
-  if (!currentFile) { setStatus('Drop an image to start', ''); return; }
+  if (!currentFile && !isWebcamActive()) { setStatus('Drop an image to start', ''); return; }
   if (isRendering) return; 
   isRendering = true;
   setBusy(true);
-  setStatus('Rendering…', 'busy');
-
-  await new Promise(r => setTimeout(r, 50));
 
   try {
     const canvas = await render(params);
-    canvas.style.animation = 'resultPopIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards';
+    if (!isWebcamActive()) {
+      canvas.style.animation = 'resultPopIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards';
+    }
     resultInner.innerHTML = '';
     resultInner.appendChild(canvas);
     dropzone.style.display = 'none';
     resultWrap.style.display = 'flex';
     document.getElementById('zoom-controls').style.display = 'flex';
     exportBtns.forEach(b => b.style.display = ''); 
-    setStatus(`Done · ${params.cols} cols · ${params.theme}`, 'ok');
+    setStatus(`Done · ${params.effectMode || 'ascii'} · ${params.theme}`, 'ok');
     updateZoom();
   } catch (e) {
     setStatus('Error: ' + e.message, 'err');
@@ -240,7 +316,7 @@ btnRender.addEventListener('click', doRender);
 
 document.getElementById('btn-html').addEventListener('click', async () => {
   const htmlStr = exportHTML();
-  if (!htmlStr) return;
+  if (!htmlStr) return toast('HTML export only available for ASCII mode');
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>ASCII Art</title></head><body style="margin:0;background:${params.bgHex};">${htmlStr}</body></html>`;
   triggerDownloadText(html, 'ascii_art.html', 'text/html');
   toast('HTML saved ✓');
@@ -248,14 +324,14 @@ document.getElementById('btn-html').addEventListener('click', async () => {
 
 document.getElementById('btn-txt').addEventListener('click', () => {
   const txt = exportTXT();
-  if (!txt) return;
+  if (!txt) return toast('TXT export only available for ASCII mode');
   triggerDownloadText(txt, 'ascii_art.txt');
   toast('TXT saved ✓');
 });
 
 document.getElementById('btn-svg').addEventListener('click', () => {
   const svg = exportSVG();
-  if (!svg) return;
+  if (!svg) return toast('SVG export only available for ASCII mode');
   triggerDownloadText(svg, 'ascii_art.svg', 'image/svg+xml');
   toast('SVG saved ✓');
 });
@@ -265,7 +341,7 @@ document.getElementById('btn-png').addEventListener('click', async () => {
   try {
     const blob = await exportPNG();
     if (!blob) { toast('Render an image first'); setStatus('Ready', ''); return; }
-    triggerDownload(blob, 'ascii_art.png');
+    triggerDownload(blob, `${params.effectMode || 'render'}.png`);
     setStatus('PNG saved', 'ok');
     toast('PNG saved ✓');
   } catch (e) { setStatus('PNG error: ' + (e.message || e), 'err'); console.error(e); }
@@ -276,7 +352,7 @@ document.getElementById('btn-pdf').addEventListener('click', async () => {
   try {
     const blob = await exportPDF();
     if (!blob) { toast('Render an image first'); setStatus('Ready', ''); return; }
-    triggerDownload(blob, 'ascii_art.pdf');
+    triggerDownload(blob, `${params.effectMode || 'render'}.pdf`);
     setStatus('PDF saved', 'ok');
     toast('PDF saved ✓');
   } catch (e) { setStatus('PDF error: ' + (e.message || e), 'err'); console.error(e); }
@@ -328,7 +404,6 @@ const closeExportSheet = document.getElementById('close-export-sheet');
 // Tab Switching
 mobileTabs.forEach(tab => {
   tab.addEventListener('click', () => {
-    // Highlight active tab
     mobileTabs.forEach(t => t.classList.remove('active'));
     tab.classList.add('active');
 
@@ -350,7 +425,6 @@ mobileTabs.forEach(tab => {
 if (mobileRenderFab) {
   mobileRenderFab.addEventListener('click', () => {
     doRender();
-    // Auto-switch back to preview tab to see the result
     document.querySelector('.mobile-tab[data-tab="preview"]')?.click();
   });
 }
@@ -359,7 +433,6 @@ if (mobileRenderFab) {
 if (closeExportSheet) {
   closeExportSheet.addEventListener('click', () => {
     mobileExportSheet.classList.add('hidden');
-    // Revert tab state to whatever is visible
     if (sidebar.classList.contains('mobile-visible')) {
       document.querySelector('.mobile-tab[data-tab="controls"]')?.classList.add('active');
     } else {
@@ -375,30 +448,35 @@ document.querySelectorAll('.sheet-btn').forEach(btn => {
     const format = btn.dataset.export;
     let res, type, ext;
 
-    if (format === 'html') {
-      const htmlStr = exportHTML();
-      if (!htmlStr) return;
-      res = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>ASCII Art</title></head><body style="margin:0;background:${params.bgHex};">${htmlStr}</body></html>`;
-      type = 'text/html'; ext = 'html';
-    }
-    else if (format === 'svg') { res = exportSVG(); type = 'image/svg+xml'; ext = 'svg'; }
-    else if (format === 'txt') { res = exportTXT(); type = 'text/plain'; ext = 'txt'; }
-    else if (format === 'png') { res = await exportPNG(); }
-    else if (format === 'pdf') { res = await exportPDF(); }
-
-    if (res) {
-      if (format === 'png' || format === 'pdf') triggerDownload(res, `render.${format}`);
-      else triggerDownloadText(res, `render.${ext}`, type);
-      toast(`Exported ${format.toUpperCase()}`);
-      mobileExportSheet.classList.add('hidden'); // Close sheet on success
-      
-      // Fix tab state
-      document.querySelector('.mobile-tab[data-tab="export"]')?.classList.remove('active');
-      if (sidebar.classList.contains('mobile-visible')) {
-        document.querySelector('.mobile-tab[data-tab="controls"]')?.classList.add('active');
-      } else {
-        document.querySelector('.mobile-tab[data-tab="preview"]')?.classList.add('active');
+    try {
+      if (format === 'html') {
+        const htmlStr = exportHTML();
+        if (!htmlStr) return toast('HTML only available for ASCII');
+        res = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>ASCII Art</title></head><body style="margin:0;background:${params.bgHex};">${htmlStr}</body></html>`;
+        type = 'text/html'; ext = 'html';
       }
+      else if (format === 'svg') { res = exportSVG(); type = 'image/svg+xml'; ext = 'svg'; }
+      else if (format === 'txt') { res = exportTXT(); type = 'text/plain'; ext = 'txt'; }
+      else if (format === 'png') { res = await exportPNG(); }
+      else if (format === 'pdf') { res = await exportPDF(); }
+
+      if (res) {
+        if (format === 'png' || format === 'pdf') triggerDownload(res, `render.${format}`);
+        else triggerDownloadText(res, `render.${ext}`, type);
+        toast(`Exported ${format.toUpperCase()}`);
+        mobileExportSheet.classList.add('hidden');
+        
+        document.querySelector('.mobile-tab[data-tab="export"]')?.classList.remove('active');
+        if (sidebar.classList.contains('mobile-visible')) {
+          document.querySelector('.mobile-tab[data-tab="controls"]')?.classList.add('active');
+        } else {
+          document.querySelector('.mobile-tab[data-tab="preview"]')?.classList.add('active');
+        }
+      } else {
+        toast('Render an image first');
+      }
+    } catch (e) {
+      toast('Export error: ' + (e.message || e));
     }
   });
 });

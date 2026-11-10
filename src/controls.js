@@ -1,6 +1,8 @@
 import { THEMES, PORTRAIT_BINARY_DEFAULTS, RAW_CHARSETS } from './engine.js';
+import { PALETTES } from './palettes.js';
 
 export const DEFAULT_PARAMS = {
+  effectMode: 'ascii',
   cols: 120,
   charset: 'common',
   charAspect: 0.45,
@@ -32,18 +34,72 @@ export const DEFAULT_PARAMS = {
   saliencyAware: true,
   saliencyBoost: 0.60,
   dataFlood: false,
+  customCharset: '',
+  // Grainrad effects & retro parameters
+  palette: 'gameboy',
+  ditherMethod: 'bayer8x8',
+  crtScanlines: false,
+  chromaticAberration: false,
+  crtCurve: false,
+  halftoneSpacing: 8,
+  halftoneAngle: 45,
+  waveLineCount: 50,
+  pixelSortThreshold: 0.35,
+  contourLevels: 8,
+  crosshatchDensity: 7,
+  blockifySize: 8,
 };
 
 export function initControls(onChange) {
   const state = { ...DEFAULT_PARAMS };
 
+  // Populate Themes
   const themeSelect = document.getElementById('theme');
-  for (const [k, v] of Object.entries(THEMES)) {
-    const opt = document.createElement('option');
-    opt.value = k; opt.textContent = v.label;
-    themeSelect.appendChild(opt);
+  if (themeSelect) {
+    for (const [k, v] of Object.entries(THEMES)) {
+      const opt = document.createElement('option');
+      opt.value = k; opt.textContent = v.label;
+      themeSelect.appendChild(opt);
+    }
+    themeSelect.value = state.theme;
   }
-  themeSelect.value = 'colour';
+
+  // Populate Retro Palettes
+  const palSelect = document.getElementById('palette');
+  const palChips = document.getElementById('palette-chips');
+  
+  function updatePaletteChips(palKey) {
+    if (!palChips) return;
+    const p = PALETTES[palKey];
+    palChips.innerHTML = '';
+    if (!p || !p.colors || p.colors.length === 0) {
+      palChips.innerHTML = '<span style="font-size:10px;color:var(--text-3);">Full RGB Spectrum</span>';
+      return;
+    }
+    p.colors.slice(0, 16).forEach(c => {
+      const chip = document.createElement('div');
+      chip.style.cssText = `width:12px;height:12px;border-radius:2px;background:${c};border:1px solid rgba(255,255,255,0.15);`;
+      chip.title = c;
+      palChips.appendChild(chip);
+    });
+  }
+
+  if (palSelect) {
+    for (const [k, v] of Object.entries(PALETTES)) {
+      const opt = document.createElement('option');
+      opt.value = k;
+      opt.textContent = `${v.name} (${v.category})`;
+      palSelect.appendChild(opt);
+    }
+    palSelect.value = state.palette;
+    updatePaletteChips(state.palette);
+
+    palSelect.addEventListener('change', () => {
+      state.palette = palSelect.value;
+      updatePaletteChips(state.palette);
+      onChange(state);
+    });
+  }
 
   function bindSlider(id, key, fmt = v => parseFloat(v).toFixed(2)) {
     const el = document.getElementById(id);
@@ -78,13 +134,34 @@ export function initControls(onChange) {
     });
   }
 
+  // Effect Mode Selector (ASCII, Matrix, Dithering, Halftone, Wave Lines, Pixel Sort, Contour, Crosshatch, Blockify)
+  const effectBtns = document.querySelectorAll('.effect-pill');
+  effectBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      effectBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.effectMode = btn.dataset.mode;
+
+      // Adjust UI panel focus based on mode
+      const secPalette = document.getElementById('sec-palette');
+      const secImage = document.getElementById('sec-image');
+      if (state.effectMode === 'ascii') {
+        if (secImage) secImage.classList.add('open');
+      } else {
+        if (secPalette) secPalette.classList.add('open');
+      }
+
+      onChange(state);
+    });
+  });
+
   bindSlider('cols', 'cols', v => v);
 
   const charsetEl = document.getElementById('charset');
   const customRow = document.getElementById('custom-charset-row');
   const customInput = document.getElementById('custom_charset');
   const charsetPreview = document.getElementById('charset-preview');
-  charsetEl.value = state.charset;
+  if (charsetEl) charsetEl.value = state.charset;
 
   const updateCharsetPreview = () => {
     if (!charsetPreview) return;
@@ -95,32 +172,38 @@ export function initControls(onChange) {
     }
   };
 
-  charsetEl.addEventListener('change', () => {
-    state.charset = charsetEl.value;
-    if (state.charset === 'binary' || state.charset === 'numbers') {
-      state.dataFlood = true;
-      const dfEl = document.getElementById('data_flood');
-      if (dfEl) dfEl.checked = true;
-    }
-    toggleCustomRow();
-    updateCharsetPreview();
-    onChange(state);
-  });
-
   const toggleCustomRow = () => {
-    customRow.style.display = state.charset === 'custom' ? '' : 'none';
+    if (customRow) customRow.style.display = state.charset === 'custom' ? '' : 'none';
   };
+
+  if (charsetEl) {
+    charsetEl.addEventListener('change', () => {
+      state.charset = charsetEl.value;
+      if (state.charset === 'binary') {
+        state.dataFlood = true;
+        const dfEl = document.getElementById('data_flood');
+        if (dfEl) dfEl.checked = true;
+      }
+      toggleCustomRow();
+      updateCharsetPreview();
+      onChange(state);
+    });
+  }
+
   toggleCustomRow();
   updateCharsetPreview();
-  let customDebounce = null;
-  customInput.addEventListener('input', () => {
-    const val = customInput.value;
-    state.customCharset = val;
-    updateCharsetPreview();
-    if (!val.trim() || val.trim().length < 2) return;
-    clearTimeout(customDebounce);
-    customDebounce = setTimeout(() => onChange(state), 500);
-  });
+
+  if (customInput) {
+    let customDebounce = null;
+    customInput.addEventListener('input', () => {
+      const val = customInput.value;
+      state.customCharset = val;
+      updateCharsetPreview();
+      if (!val.trim() || val.trim().length < 2) return;
+      clearTimeout(customDebounce);
+      customDebounce = setTimeout(() => onChange(state), 400);
+    });
+  }
 
   bindSlider('char_aspect', 'charAspect');
   bindSlider('sharpen', 'sharpen');
@@ -137,6 +220,12 @@ export function initControls(onChange) {
   bindSlider('multiscale_boost', 'multiscaleBoost');
   bindCheckbox('data_flood', 'dataFlood');
 
+  // Grainrad Retro & Post-Processing Controls
+  bindSelect('dither_method', 'ditherMethod');
+  bindCheckbox('crt_scanlines', 'crtScanlines');
+  bindCheckbox('chromatic_aberration', 'chromaticAberration');
+  bindCheckbox('crt_curve', 'crtCurve');
+
   function updateThemeSwatch(theme) {
     const swBg = document.getElementById('swatch-bg');
     const swFg = document.getElementById('swatch-fg');
@@ -149,77 +238,63 @@ export function initControls(onChange) {
   function flashColorPickers() {
     ['bg_hex', 'fg_hex'].forEach(id => {
       const el = document.getElementById(id);
-      if (!el) return;
-      el.classList.remove('color-flash');
-      void el.offsetWidth;
-      el.classList.add('color-flash');
+      if (el) {
+        el.classList.add('flash');
+        setTimeout(() => el.classList.remove('flash'), 400);
+      }
     });
   }
 
-  themeSelect.addEventListener('change', () => {
-    const t = THEMES[themeSelect.value];
-    if (!t) return;
-    state.theme = themeSelect.value;
-    state.colourMode = t.colour;
-    state.bgHex = t.bg;
-    state.fgHex = t.fg;
-    document.getElementById('bg_hex').value = t.bg;
-    document.getElementById('fg_hex').value = t.fg;
-    updateThemeSwatch(t);
-    flashColorPickers();
-    onChange(state);
-  });
+  if (themeSelect) {
+    themeSelect.addEventListener('change', () => {
+      state.theme = themeSelect.value;
+      const t = THEMES[state.theme];
+      if (t) {
+        state.bgHex = t.bg;
+        state.fgHex = t.fg;
+        state.colourMode = t.colour;
+        const bgEl = document.getElementById('bg_hex');
+        const fgEl = document.getElementById('fg_hex');
+        if (bgEl) bgEl.value = t.bg;
+        if (fgEl) fgEl.value = t.fg;
+        updateThemeSwatch(t);
+        flashColorPickers();
+      }
+      onChange(state);
+    });
+  }
 
   bindSlider('attenuation', 'attenuation');
   bindSlider('vignette', 'vignette');
   bindSlider('grain', 'grain');
 
-  document.getElementById('fg_hex').addEventListener('input', e => {
-    state.fgHex = e.target.value; onChange(state);
-  });
-  document.getElementById('bg_hex').addEventListener('input', e => {
-    state.bgHex = e.target.value; onChange(state);
-  });
-  document.getElementById('bg_transparent').addEventListener('change', e => {
-    state.bgTransparent = e.target.checked; onChange(state);
-  });
-
-  bindSlider('ml_saliency_boost', 'saliencyBoost');
-
-   
-  const _advancedModes = [
-    { id: 'saliency_aware', key: 'saliencyAware', subCtrlId: 'saliency-sub' },
-  ];
-
-  _advancedModes.forEach(({ id, key, subCtrlId }) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.checked = state[key];
-    const sub = subCtrlId ? document.getElementById(subCtrlId) : null;
-    if (sub) sub.style.display = state[key] ? '' : 'none';
-    el.addEventListener('change', () => {
-      if (el.checked) {
-        _advancedModes.forEach(m => {
-          if (m.id !== id) {
-            state[m.key] = false;
-            const other = document.getElementById(m.id);
-            if (other) other.checked = false;
-            if (m.subCtrlId) {
-              const subEl = document.getElementById(m.subCtrlId);
-              if (subEl) subEl.style.display = 'none';
-            }
-          }
-        });
-      }
-      state[key] = el.checked;
-      if (sub) sub.style.display = el.checked ? '' : 'none';
+  const bgHexEl = document.getElementById('bg_hex');
+  const fgHexEl = document.getElementById('fg_hex');
+  if (bgHexEl) {
+    bgHexEl.addEventListener('input', () => {
+      state.bgHex = bgHexEl.value;
+      const swBg = document.getElementById('swatch-bg');
+      if (swBg) swBg.style.background = state.bgHex;
       onChange(state);
     });
-  });
+  }
+  if (fgHexEl) {
+    fgHexEl.addEventListener('input', () => {
+      state.fgHex = fgHexEl.value;
+      const swFg = document.getElementById('swatch-fg');
+      if (swFg) swFg.style.background = state.fgHex;
+      onChange(state);
+    });
+  }
+
+  bindCheckbox('bg_transparent', 'bgTransparent');
+
+  bindSlider('ml_saliency_boost', 'saliencyBoost');
+  bindCheckbox('saliency_aware', 'saliencyAware', 'saliency-sub');
 
   bindSlider('font_size', 'fontSize', v => parseFloat(v).toFixed(2));
   
-  // Custom binding for gaps to handle linking
+  // Gaps handling
   const vGapEl = document.getElementById('vertical_gap');
   const hGapEl = document.getElementById('horizontal_gap');
   const vGapLbl = document.getElementById('val-vertical_gap');
@@ -229,6 +304,7 @@ export function initControls(onChange) {
   let gapRatio = state.verticalGap / (state.horizontalGap || 1);
 
   const updateLinkGapsUI = () => {
+    if (!iconLinkGaps || !btnLinkGaps) return;
     if (state.linkGaps) {
       iconLinkGaps.innerHTML = `<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>`;
       btnLinkGaps.classList.add('active');
@@ -277,6 +353,7 @@ export function initControls(onChange) {
       updateLinkGapsUI();
     });
   }
+
   const fontSelect = document.getElementById('output_font');
   if (fontSelect) {
     fontSelect.value = state.outputFont;
@@ -288,19 +365,22 @@ export function initControls(onChange) {
     updateFontPreview(state.outputFont);
   }
 
+  // Section accordions
   document.querySelectorAll('.section-head').forEach(head => {
     head.addEventListener('click', () => {
       head.closest('.section').classList.toggle('open');
     });
   });
 
-  document.getElementById('sec-image').classList.add('open');
-  document.getElementById('sec-tone').classList.add('open');
-  document.getElementById('sec-display').classList.add('open');
+  document.getElementById('sec-image')?.classList.add('open');
+  document.getElementById('sec-palette')?.classList.add('open');
+  document.getElementById('sec-tone')?.classList.add('open');
 
   const t = THEMES[DEFAULT_PARAMS.theme] || THEMES['colour'];
-  document.getElementById('bg_hex').value = t.bg;
-  document.getElementById('fg_hex').value = t.fg;
+  const bgElInit = document.getElementById('bg_hex');
+  const fgElInit = document.getElementById('fg_hex');
+  if (bgElInit) bgElInit.value = t.bg;
+  if (fgElInit) fgElInit.value = t.fg;
   updateThemeSwatch(t);
 
   const gammaWarn = document.getElementById('gamma-warn');
@@ -309,11 +389,11 @@ export function initControls(onChange) {
     const warn = state.equalize && state.gamma > 1.4;
     gammaWarn.style.display = warn ? 'inline' : 'none';
   }
-  document.getElementById('gamma').addEventListener('input', () => {
+  document.getElementById('gamma')?.addEventListener('input', () => {
     state.gamma = parseFloat(document.getElementById('gamma').value);
     updateGammaWarn();
   });
-  document.getElementById('equalize').addEventListener('change', updateGammaWarn);
+  document.getElementById('equalize')?.addEventListener('change', updateGammaWarn);
   updateGammaWarn();
 
   const TONE_PRESETS = {
@@ -350,9 +430,20 @@ export function initControls(onChange) {
         if (el) el.checked = preset[k];
       });
 
+      if (preset.saliencyAware !== undefined) {
+        const salSub = document.getElementById('saliency-sub');
+        if (salSub) salSub.style.display = preset.saliencyAware ? '' : 'none';
+      }
+      if (preset.multiscale !== undefined) {
+        const multiSub = document.getElementById('multiscale-sub');
+        if (multiSub) multiSub.style.display = preset.multiscale ? '' : 'none';
+      }
+
       if (preset.charset) {
-        document.getElementById('charset').value = preset.charset;
-        document.getElementById('custom-charset-row').style.display = preset.charset === 'custom' ? '' : 'none';
+        const csEl = document.getElementById('charset');
+        if (csEl) csEl.value = preset.charset;
+        toggleCustomRow();
+        updateCharsetPreview();
       }
 
       updateGammaWarn();
@@ -360,58 +451,77 @@ export function initControls(onChange) {
     });
   }
 
-  document.getElementById('btn-reset').addEventListener('click', () => {
-    Object.assign(state, DEFAULT_PARAMS);
+  // Complete Reset Button
+  const resetBtn = document.getElementById('btn-reset');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', () => {
+      Object.assign(state, DEFAULT_PARAMS);
 
-    document.getElementById('cols').value = DEFAULT_PARAMS.cols;
-    document.getElementById('val-cols').textContent = DEFAULT_PARAMS.cols;
-    document.getElementById('char_aspect').value = DEFAULT_PARAMS.charAspect;
-    document.getElementById('val-char_aspect').textContent = DEFAULT_PARAMS.charAspect.toFixed(2);
-    document.getElementById('sharpen').value = DEFAULT_PARAMS.sharpen;
-    document.getElementById('val-sharpen').textContent = DEFAULT_PARAMS.sharpen.toFixed(2);
-    document.getElementById('contrast').value = DEFAULT_PARAMS.contrast;
-    document.getElementById('val-contrast').textContent = DEFAULT_PARAMS.contrast.toFixed(2);
-    document.getElementById('gamma').value = DEFAULT_PARAMS.gamma;
-    document.getElementById('val-gamma').textContent = DEFAULT_PARAMS.gamma.toFixed(2);
-    document.getElementById('exposure').value = DEFAULT_PARAMS.exposure;
-    document.getElementById('val-exposure').textContent = DEFAULT_PARAMS.exposure.toFixed(2);
-    document.getElementById('edge_weight').value = DEFAULT_PARAMS.edgeWeight;
-    document.getElementById('val-edge_weight').textContent = DEFAULT_PARAMS.edgeWeight.toFixed(2);
-    document.getElementById('alpha_threshold').value = DEFAULT_PARAMS.alphaThreshold;
-    document.getElementById('val-alpha_threshold').textContent = DEFAULT_PARAMS.alphaThreshold.toFixed(2);
-    document.getElementById('attenuation').value = DEFAULT_PARAMS.attenuation;
-    document.getElementById('val-attenuation').textContent = DEFAULT_PARAMS.attenuation.toFixed(2);
-    document.getElementById('vignette').value = DEFAULT_PARAMS.vignette;
-    document.getElementById('val-vignette').textContent = DEFAULT_PARAMS.vignette.toFixed(2);
-    document.getElementById('grain').value = DEFAULT_PARAMS.grain;
-    document.getElementById('val-grain').textContent = DEFAULT_PARAMS.grain.toFixed(2);
-    document.getElementById('multiscale_boost').value = DEFAULT_PARAMS.multiscaleBoost;
-    document.getElementById('val-multiscale_boost').textContent = DEFAULT_PARAMS.multiscaleBoost.toFixed(2);
-    document.getElementById('ml_saliency_boost').value = DEFAULT_PARAMS.saliencyBoost;
-    document.getElementById('val-ml_saliency_boost').textContent = DEFAULT_PARAMS.saliencyBoost.toFixed(2);
-    document.getElementById('font_size').value = DEFAULT_PARAMS.fontSize;
-    document.getElementById('val-font_size').textContent = DEFAULT_PARAMS.fontSize;
+      // Effect pills
+      effectBtns.forEach(b => b.classList.toggle('active', b.dataset.mode === DEFAULT_PARAMS.effectMode));
 
-    ['equalize', 'dither', 'invert', 'show_mask', 'multiscale', 'saliency_aware', 'data_flood', 'bg_transparent'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.checked = !!DEFAULT_PARAMS[id.replace(/_([a-z])/g, (_, c) => c.toUpperCase())];
+      // Reset all inputs & labels
+      const resetVals = {
+        cols: DEFAULT_PARAMS.cols,
+        char_aspect: DEFAULT_PARAMS.charAspect,
+        sharpen: DEFAULT_PARAMS.sharpen,
+        contrast: DEFAULT_PARAMS.contrast,
+        gamma: DEFAULT_PARAMS.gamma,
+        exposure: DEFAULT_PARAMS.exposure,
+        edge_weight: DEFAULT_PARAMS.edgeWeight,
+        alpha_threshold: DEFAULT_PARAMS.alphaThreshold,
+        attenuation: DEFAULT_PARAMS.attenuation,
+        vignette: DEFAULT_PARAMS.vignette,
+        grain: DEFAULT_PARAMS.grain,
+        multiscale_boost: DEFAULT_PARAMS.multiscaleBoost,
+        ml_saliency_boost: DEFAULT_PARAMS.saliencyBoost,
+        font_size: DEFAULT_PARAMS.fontSize,
+        vertical_gap: DEFAULT_PARAMS.verticalGap,
+        horizontal_gap: DEFAULT_PARAMS.horizontalGap,
+      };
+
+      for (const [id, val] of Object.entries(resetVals)) {
+        const el = document.getElementById(id);
+        const lbl = document.getElementById('val-' + id);
+        if (el) el.value = val;
+        if (lbl) lbl.textContent = (id === 'cols' || id === 'font_size') ? val : Number(val).toFixed(2);
+      }
+
+      ['equalize', 'dither', 'invert', 'show_mask', 'multiscale', 'saliency_aware', 'data_flood', 'bg_transparent', 'crt_scanlines', 'chromatic_aberration', 'crt_curve'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.checked = !!DEFAULT_PARAMS[id.replace(/_([a-z])/g, (_, c) => c.toUpperCase())];
+      });
+
+      if (charsetEl) charsetEl.value = DEFAULT_PARAMS.charset;
+      if (customInput) customInput.value = '';
+      if (themeSelect) themeSelect.value = DEFAULT_PARAMS.theme;
+      if (palSelect) {
+        palSelect.value = DEFAULT_PARAMS.palette;
+        updatePaletteChips(DEFAULT_PARAMS.palette);
+      }
+      if (fontSelect) fontSelect.value = DEFAULT_PARAMS.outputFont;
+      if (presetDropdown) presetDropdown.value = 'default';
+
+      const defTheme = THEMES[DEFAULT_PARAMS.theme];
+      if (bgElInit) bgElInit.value = defTheme.bg;
+      if (fgElInit) fgElInit.value = defTheme.fg;
+
+      const multiSub = document.getElementById('multiscale-sub');
+      const salSub = document.getElementById('saliency-sub');
+      if (multiSub) multiSub.style.display = DEFAULT_PARAMS.multiscale ? '' : 'none';
+      if (salSub) salSub.style.display = DEFAULT_PARAMS.saliencyAware ? '' : 'none';
+
+      state.linkGaps = false;
+      updateLinkGapsUI();
+      toggleCustomRow();
+      updateCharsetPreview();
+      updateThemeSwatch(defTheme);
+      updateFontPreview(DEFAULT_PARAMS.outputFont);
+      flashColorPickers();
+      updateGammaWarn();
+      onChange(state);
     });
-
-    document.getElementById('charset').value = DEFAULT_PARAMS.charset;
-    document.getElementById('theme').value = DEFAULT_PARAMS.theme;
-    document.getElementById('output_font').value = DEFAULT_PARAMS.outputFont;
-    document.getElementById('tone_preset').value = 'default';
-
-    const defTheme = THEMES[DEFAULT_PARAMS.theme];
-    document.getElementById('bg_hex').value = defTheme.bg;
-    document.getElementById('fg_hex').value = defTheme.fg;
-    if (document.getElementById('multiscale-sub')) document.getElementById('multiscale-sub').style.display = 'none';
-    if (document.getElementById('saliency-sub')) document.getElementById('saliency-sub').style.display = 'none';
-    updateThemeSwatch(defTheme);
-    flashColorPickers();
-    updateGammaWarn();
-    onChange(state);
-  });
+  }
 
   return state;
 }
