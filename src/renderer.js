@@ -8,6 +8,7 @@ import {
   runPipeline,
   THEMES,
 } from './engine.js';
+import { DEFAULT_PARAMS } from './controls.js';
 
 let currentImg = null;
 let lastResult = null;
@@ -22,39 +23,14 @@ export async function loadFile(file) {
   return currentImg;
 }
 
-function _buildOpts(params) {
-  const theme = THEMES[params.theme] || THEMES.noir;
+function _buildOpts(params = {}) {
+  const merged = { ...DEFAULT_PARAMS, ...params };
+  const theme = THEMES[merged.theme] || THEMES.noir;
   return {
-    cols: params.cols,
-    charset: params.charset,
-    charAspect: params.charAspect,
-    sharpen: params.sharpen,
-    contrast: params.contrast,
-    gamma: params.gamma,
-    exposure: params.exposure,
-    edgeWeight: params.edgeWeight,
-    equalize: params.equalize,
-    dither: params.dither,
-    invert: params.invert,
-    showMask: params.showMask,
-    alphaThreshold: params.alphaThreshold,
-    vignette: params.vignette,
-    grain: params.grain,
-    attenuation: params.attenuation,
-    colourMode: params.colourMode !== undefined ? params.colourMode : theme.colour,
-    fgHex: params.fgHex || theme.fg,
-    bgHex: params.bgHex || theme.bg,
-    bgTransparent: params.bgTransparent,
-    fontSize: params.fontSize,
-    verticalGap: params.verticalGap,
-    horizontalGap: params.horizontalGap,
-    outputFont: params.outputFont,
-    multiscale: params.multiscale,
-    multiscaleBoost: params.multiscaleBoost,
-    saliencyAware: params.saliencyAware,
-    saliencyBoost: params.saliencyBoost,
-    randomOverlay: params.randomOverlay,
-    customCharset: params.customCharset || '',
+    ...merged,
+    colourMode: merged.colourMode !== undefined ? merged.colourMode : theme.colour,
+    fgHex: merged.fgHex || theme.fg,
+    bgHex: merged.bgHex || theme.bg,
   };
 }
 
@@ -84,7 +60,7 @@ function _getExportCanvas(scaleFactor = 2) {
     cols: lastResult.cols,
     ...lastParams,
     fontSize: lastParams.fontSize * scaleFactor,
-    horizontalGap: (lastParams.horizontalGap || 0.3) * scaleFactor,
+    horizontalGap: (lastParams.horizontalGap !== undefined ? lastParams.horizontalGap : 0.3) * scaleFactor,
   };
   return renderToCanvas(
     lastResult.charGrid,

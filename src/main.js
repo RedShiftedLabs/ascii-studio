@@ -375,7 +375,12 @@ document.querySelectorAll('.sheet-btn').forEach(btn => {
     const format = btn.dataset.export;
     let res, type, ext;
 
-    if (format === 'html') { res = exportHTML(); type = 'text/html'; ext = 'html'; }
+    if (format === 'html') {
+      const htmlStr = exportHTML();
+      if (!htmlStr) return;
+      res = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>ASCII Art</title></head><body style="margin:0;background:${params.bgHex};">${htmlStr}</body></html>`;
+      type = 'text/html'; ext = 'html';
+    }
     else if (format === 'svg') { res = exportSVG(); type = 'image/svg+xml'; ext = 'svg'; }
     else if (format === 'txt') { res = exportTXT(); type = 'text/plain'; ext = 'txt'; }
     else if (format === 'png') { res = await exportPNG(); }

@@ -298,7 +298,7 @@ export function initControls(onChange) {
   document.getElementById('sec-tone').classList.add('open');
   document.getElementById('sec-display').classList.add('open');
 
-  const t = THEMES['noir'];
+  const t = THEMES[DEFAULT_PARAMS.theme] || THEMES['colour'];
   document.getElementById('bg_hex').value = t.bg;
   document.getElementById('fg_hex').value = t.fg;
   updateThemeSwatch(t);
@@ -392,7 +392,7 @@ export function initControls(onChange) {
     document.getElementById('font_size').value = DEFAULT_PARAMS.fontSize;
     document.getElementById('val-font_size').textContent = DEFAULT_PARAMS.fontSize;
 
-    ['equalize', 'dither', 'invert', 'show_mask', 'multiscale', 'saliency_aware', 'random_overlay', 'bg_transparent'].forEach(id => {
+    ['equalize', 'dither', 'invert', 'show_mask', 'multiscale', 'saliency_aware', 'data_flood', 'bg_transparent'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.checked = !!DEFAULT_PARAMS[id.replace(/_([a-z])/g, (_, c) => c.toUpperCase())];
     });

@@ -8,7 +8,7 @@ export const RAW_CHARSETS = {
   braille: ' ⠁⠂⠃⠄⠅⠆⠇⠈⠉⠊⠋⠌⠍⠎⠏⠐⠑⠒⠓⠔⠕⠖⠗⠘⠙⠚⠛⠜⠝⠞⠟⠠⠡⠢⠣⠤⠥⠦⠧⠨⠩⠪⠫⠬⠭⠮⠯⠰⠱⠲⠳⠴⠵⠶⠷⠸⠹⠺⠻⠼⠽⠾⠿',
   lineart: ' .,:;i|/\\()[]{}tfjl!-_+=xXYZO0#%@',
   edges: ' .-+|/\\xX#@',
-  binary: '01',
+  binary: ' 01',
   numbers: ' 1732456908',
   scanlines: ' ─━═╌╍║│├┤┬┴┼╫╪',
   circuit: ' .·+×╋┼├┤╠╣╦╩╬○●◎',
@@ -97,20 +97,18 @@ export function rasterizeCharset(chars, simW = 8, simH = 12, outputFont = 'monos
   return rasterList;
 }
 
-export function retinexNormalization(b, w, h) {
-  const logB = new Float32Array(b.length);
-  for (let i = 0; i < b.length; i++) logB[i] = Math.log(1 + b[i]);
-
-  const radius = 8;
+export function applyLocalDetail(b, w, h, amount = 0.35) {
+  if (amount <= 0) return b;
+  const radius = 3;
   const blurred = new Float32Array(b.length);
   const temp = new Float32Array(b.length);
 
   for (let y = 0; y < h; y++) {
     let sum = 0, count = 0;
-    for (let x = 0; x < Math.min(radius - 1, w); x++) { sum += logB[y * w + x]; count++; }
+    for (let x = 0; x < Math.min(radius - 1, w); x++) { sum += b[y * w + x]; count++; }
     for (let x = 0; x < w; x++) {
-      if (x + radius < w) { sum += logB[y * w + x + radius]; count++; }
-      if (x - radius - 1 >= 0) { sum -= logB[y * w + x - radius - 1]; count--; }
+      if (x + radius < w) { sum += b[y * w + x + radius]; count++; }
+      if (x - radius - 1 >= 0) { sum -= b[y * w + x - radius - 1]; count--; }
       temp[y * w + x] = sum / count;
     }
   }
@@ -127,30 +125,36 @@ export function retinexNormalization(b, w, h) {
 
   const out = new Float32Array(b.length);
   for (let i = 0; i < b.length; i++) {
-    const reflectance = logB[i] - blurred[i];
-
-    out[i] = Math.max(0, Math.min(255, reflectance * 64 + 128));
+    const detail = b[i] - blurred[i];
+    out[i] = Math.max(0, Math.min(255, b[i] + detail * amount));
   }
   return out;
 }
 
-export function measureCharDensity(chars, size = 16) {
+export const retinexNormalization = applyLocalDetail;
+
+export function measureCharDensity(chars, size = 24) {
   const key = chars + '_' + size;
   if (_densityCache.has(key)) return _densityCache.get(key);
 
   const canvas = new OffscreenCanvas(size, size);
   const ctx = canvas.getContext('2d');
   ctx.font = `${size}px monospace`;
+  ctx.textBaseline = 'top';
 
   const densities = {};
   for (const ch of chars) {
+    if (ch === ' ' || ch === '\u00A0') {
+      densities[ch] = 0.0;
+      continue;
+    }
     ctx.clearRect(0, 0, size, size);
-    ctx.fillStyle = '#fff';
+    ctx.fillStyle = '#ffffff';
     ctx.fillText(ch, 1, size - 2);
     const data = ctx.getImageData(0, 0, size, size).data;
     let sum = 0;
     for (let i = 0; i < data.length; i += 4) sum += data[i];
-    densities[ch] = 1 - sum / (size * size * 255);
+    densities[ch] = sum / (size * size * 255);
   }
 
   const sorted = [...chars].sort((a, b) => densities[a] - densities[b]).join('');
@@ -276,11 +280,22 @@ export function equalizeHistogram(b, w, h) {
           th[Math.min(255, Math.max(0, b[y * w + x] | 0))]++;
         }
       }
+      const tN = (x1 - x0) * (y1 - y0);
+      const clipLimit = Math.max(2, Math.round(tN * 0.15));
+      let excess = 0;
+      for (let i = 0; i < 256; i++) {
+        if (th[i] > clipLimit) {
+          excess += th[i] - clipLimit;
+          th[i] = clipLimit;
+        }
+      }
+      const addPerBin = Math.floor(excess / 256);
+      for (let i = 0; i < 256; i++) th[i] += addPerBin;
+
       const tc = new Int32Array(256);
       tc[0] = th[0];
       for (let i = 1; i < 256; i++) tc[i] = tc[i - 1] + th[i];
       const tMin = tc.find(v => v > 0) || 0;
-      const tN = (x1 - x0) * (y1 - y0);
       const tRange = Math.max(tN - tMin, 1);
       const lut = new Uint8Array(256);
       for (let i = 0; i < 256; i++) {
@@ -358,7 +373,8 @@ export function applyFilmGrain(b, amount) {
   let seed = 42;
   const rng = () => { seed = (seed * 1664525 + 1013904223) & 0xffffffff; return (seed >>> 0) / 0xffffffff; };
   for (let i = 0; i < b.length; i++) {
-    const noise = (rng() - 0.5) * 2 * amount * 18;
+    const lumaScale = Math.min(1, b[i] / 24);
+    const noise = (rng() - 0.5) * 2 * amount * 18 * lumaScale;
     out[i] = Math.max(0, Math.min(255, b[i] + noise));
   }
   return out;
@@ -396,7 +412,7 @@ export function edgeBiasedBrightness(b, w, h, edgeWeight) {
   const out = new Float32Array(w * h);
   for (let i = 0; i < w * h; i++) {
     const edgeMag = maxMag > 0 ? (mag[i] / maxMag) * 255 : 0;
-    out[i] = Math.max(0, Math.min(255, (1 - edgeWeight) * (255 - b[i]) + edgeWeight * edgeMag));
+    out[i] = Math.max(0, Math.min(255, b[i] + edgeWeight * edgeMag * 0.8));
   }
   return out;
 }
@@ -470,78 +486,9 @@ export function cleanupBinaryGrid(grid, w, h) {
   return newGrid;
 }
 
-export function brightnessToChars(brightness, w, h, chars, invert = false, edgeMag = null, fullResData = null, dataFlood = false) {
+export function brightnessToChars(brightness, w, h, chars, invert = false, edgeMag = null, fullResData = null, dataFlood = false, gradients = null) {
   const n = chars.length - 1;
   const stripped = chars.replace(/\s/g, '');
-  const isNumbers = /^[0-9]+$/.test(stripped);
-
-  const gentleCurve = (t) => Math.pow(t, 0.92);
-  const sCurve = (t) => t * t * (3 - 2 * t);
-
-  if (fullResData) {
-    const simW = 8, simH = 12;
-    const rasters = rasterizeCharset(chars, simW, simH);
-    const rasterMap = new Map(rasters.map(r => [r.char, r]));
-    const srcW = fullResData.w, srcH = fullResData.h;
-    const data = fullResData.data;
-
-    const grid = [];
-    for (let y = 0; y < h; y++) {
-      const row = [];
-      const sy0 = Math.floor((y / h) * srcH), sy1 = Math.floor(((y + 1) / h) * srcH);
-      for (let x = 0; x < w; x++) {
-        const sx0 = Math.floor((x / w) * srcW), sx1 = Math.floor(((x + 1) / w) * srcW);
-
-        const patch = new Float32Array(simW * simH);
-        const pgx = new Float32Array(simW * simH);
-        const pgy = new Float32Array(simW * simH);
-        for (let py = 0; py < simH; py++) {
-          for (let px = 0; px < simW; px++) {
-            const srcX = Math.min(srcW - 1, sx0 + (sx1 > sx0 ? Math.floor((px / simW) * (sx1 - sx0)) : 0));
-            const srcY = Math.min(srcH - 1, sy0 + (sy1 > sy0 ? Math.floor((py / simH) * (sy1 - sy0)) : 0));
-            let val = data[srcY * srcW + srcX] / 255;
-            if (invert) val = 1 - val;
-            patch[py * simW + px] = isBinary ? sCurve(val) : gentleCurve(val);
-          }
-        }
-        for (let i = simW + 1; i < patch.length - simW - 1; i++) {
-          pgx[i] = patch[i + 1] - patch[i - 1];
-          pgy[i] = patch[i + simW] - patch[i - simW];
-        }
-
-        const idx = y * w + x;
-        const patchWeight = 1.0 + (edgeMag ? edgeMag[idx] * 4.0 : 0);
-
-        let bestChar = chars[0], minErr = Infinity;
-        for (const r of rasters) {
-          let err = 0;
-          for (let i = 0; i < patch.length; i++) {
-            const dLuma = patch[i] - r.luma[i];
-            const dGx = pgx[i] - r.gx[i];
-            const dGy = pgy[i] - r.gy[i];
-
-            err += dLuma * dLuma + (dGx * dGx + dGy * dGy) * 0.5 * patchWeight;
-          }
-
-          if (x > 0) {
-            const prevR = rasterMap.get(row[x - 1]);
-            if (prevR) {
-              const densityDiff = Math.abs(r.density - prevR.density);
-              err += densityDiff * 0.15;
-            }
-          }
-
-          if (err < minErr) {
-            minErr = err;
-            bestChar = r.char;
-          }
-        }
-        row.push(bestChar);
-      }
-      grid.push(row);
-    }
-    return grid;
-  }
 
   const bayer4x4 = [
     [0, 8, 2, 10],
@@ -554,7 +501,9 @@ export function brightnessToChars(brightness, w, h, chars, invert = false, edgeM
   for (let y = 0; y < h; y++) {
     const row = [];
     for (let x = 0; x < w; x++) {
-      let norm = brightness[y * w + x] / 255;
+      const idx = y * w + x;
+      let norm = brightness[idx] / 255;
+      norm = Math.max(0, Math.min(1, norm));
       if (invert) norm = 1 - norm;
 
       if (dataFlood) {
@@ -563,13 +512,39 @@ export function brightnessToChars(brightness, w, h, chars, invert = false, edgeM
         const hash = (x * 73856093 ^ y * 19349663) >>> 0;
         row.push(stripped[hash % stripped.length]);
       } else {
-        const curved = Math.pow(norm, 0.92);
-        let floatIndex = curved * n;
-        const baseIndex = Math.floor(floatIndex);
-        const fraction = floatIndex - baseIndex;
-        const threshold = (bayer4x4[y % 4][x % 4] + 0.5) / 16.0;
-        const charIndex = baseIndex + (fraction > threshold ? 1 : 0);
-        row.push(chars[Math.max(0, Math.min(n, charIndex))]);
+        let chosenChar = null;
+        if (edgeMag && gradients && edgeMag[idx] > 0.45 && norm > 0.15) {
+          const gx = gradients.gx[idx];
+          const gy = gradients.gy[idx];
+          const absGx = Math.abs(gx);
+          const absGy = Math.abs(gy);
+
+          if (chars.includes('|') && absGx > absGy * 1.8) {
+            chosenChar = '|';
+          } else if ((chars.includes('-') || chars.includes('_')) && absGy > absGx * 1.8) {
+            chosenChar = chars.includes('-') ? '-' : '_';
+          } else if (chars.includes('/') && gx * gy < -0.2) {
+            chosenChar = '/';
+          } else if (chars.includes('\\') && gx * gy > 0.2) {
+            chosenChar = '\\';
+          }
+        }
+
+        if (chosenChar !== null) {
+          row.push(chosenChar);
+        } else {
+          let charIndex = 0;
+          if (norm > 0.025) {
+            const adjustedNorm = (norm - 0.025) / 0.975;
+            const curved = Math.pow(adjustedNorm, 0.95);
+            const floatIndex = curved * (n - 1) + 1;
+            const baseIndex = Math.floor(floatIndex);
+            const fraction = floatIndex - baseIndex;
+            const threshold = (bayer4x4[y % 4][x % 4] + 0.5) / 16.0;
+            charIndex = baseIndex + (fraction > threshold ? 1 : 0);
+          }
+          row.push(chars[Math.max(0, Math.min(n, charIndex))]);
+        }
       }
     }
     grid.push(row);
@@ -850,8 +825,18 @@ function _computeGradientSaliency(rgba, srcW, srcH, cols, rows) {
   return out;
 }
 
-export function renderToCanvas(charGrid, brightness, colourData, opts, opacities = null) {
-  const { rows, cols, fgHex, bgHex, bgTransparent, fontSize, attenuation, colourMode, outputFont, charset, charAspect } = opts;
+export function renderToCanvas(charGrid, brightness, colourData, opts = {}, opacities = null) {
+  const rows = opts.rows || charGrid.length;
+  const cols = opts.cols || (charGrid[0] ? charGrid[0].length : 80);
+  const fgHex = opts.fgHex || '#ffffff';
+  const bgHex = opts.bgHex || '#000000';
+  const bgTransparent = !!opts.bgTransparent;
+  const fontSize = opts.fontSize || 6.0;
+  const attenuation = opts.attenuation !== undefined ? opts.attenuation : 0.7;
+  const colourMode = !!opts.colourMode;
+  const outputFont = opts.outputFont || "'JetBrains Mono',monospace";
+  const charset = opts.charset || 'common';
+  const charAspect = opts.charAspect || 0.45;
   const [fr, fg, fb] = hexToRgb(fgHex);
   const [br, bg, bb] = hexToRgb(bgHex);
 
@@ -863,7 +848,7 @@ export function renderToCanvas(charGrid, brightness, colourData, opts, opacities
   const hGap = opts.horizontalGap !== undefined ? opts.horizontalGap : (isBinary ? 1.0 : 0.3);
   const lHeight = opts.verticalGap !== undefined ? opts.verticalGap : (isBinary ? 1.10 : 1.15);
 
-  const baseCharW = fontSize * (charAspect || 0.6);
+  const baseCharW = fontSize * (charAspect || 0.45);
   const charW = baseCharW + hGap;
   const charH = fontSize * lHeight;
   const w = cols * charW;
@@ -871,8 +856,8 @@ export function renderToCanvas(charGrid, brightness, colourData, opts, opacities
 
   const canvas = document.createElement('canvas');
   const dpr = window.devicePixelRatio || 1;
-  canvas.width = w * dpr;
-  canvas.height = h * dpr;
+  canvas.width = Math.round(w * dpr);
+  canvas.height = Math.round(h * dpr);
   canvas.style.width = `${w}px`;
   canvas.style.height = `${h}px`;
 
@@ -883,27 +868,18 @@ export function renderToCanvas(charGrid, brightness, colourData, opts, opacities
     ctx.fillRect(0, 0, w, h);
   }
   ctx.font = `${fontSize}px ${outputFont}`;
-  ctx.textBaseline = 'top';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
 
-  if (!colourMode && attenuation === 0 && !opacities) {
-    ctx.fillStyle = fgHex;
-    for (let y = 0; y < rows; y++) {
-      for (let x = 0; x < cols; x++) {
-        const ch = charGrid[y][x];
-        if (ch === ' ') continue;
-        ctx.fillText(ch, x * charW, y * charH);
-      }
-    }
-    return canvas;
-  }
+  const isLightBg = (br * 0.299 + bg * 0.587 + bb * 0.114) > 128;
 
   for (let y = 0; y < rows; y++) {
     for (let x = 0; x < cols; x++) {
       const ch = charGrid[y][x];
-      if (ch === ' ') continue;
+      if (ch === ' ' || ch === '') continue;
 
       const idx = y * cols + x;
-      const luma = brightness[idx] / 255;
+      const luma = brightness ? (brightness[idx] / 255) : 1;
 
       let pr, pg, pb;
       if (colourMode && colourData) {
@@ -912,30 +888,38 @@ export function renderToCanvas(charGrid, brightness, colourData, opts, opacities
         pg = colourData.data[ci + 1];
         pb = colourData.data[ci + 2];
       } else {
-        pr = Math.round(fr * luma + br * (1 - luma));
-        pg = Math.round(fg * luma + bg * (1 - luma));
-        pb = Math.round(fb * luma + bb * (1 - luma));
+        const toneWeight = isLightBg ? (1 - luma) : luma;
+        pr = Math.round(fr * toneWeight + br * (1 - toneWeight));
+        pg = Math.round(fg * toneWeight + bg * (1 - toneWeight));
+        pb = Math.round(fb * toneWeight + bb * (1 - toneWeight));
       }
 
-      let alpha;
+      let alpha = 1;
       if (opacities) {
         alpha = opacities[idx];
-      } else {
-        alpha = attenuation > 0
-          ? Math.max(0.08, Math.min(1, luma * attenuation + (1 - attenuation)))
-          : 1;
+      } else if (attenuation > 0) {
+        const depth = isLightBg ? (1 - luma) : luma;
+        alpha = Math.max(0.06, Math.min(1, depth * attenuation + (1 - attenuation)));
       }
 
       ctx.fillStyle = `rgba(${pr},${pg},${pb},${alpha.toFixed(3)})`;
-      ctx.fillText(ch, x * charW, y * charH);
+      ctx.fillText(ch, (x + 0.5) * charW, (y + 0.5) * charH);
     }
   }
 
   return canvas;
 }
 
-export function renderToHTML(charGrid, brightness, colourData, opts, opacities = null) {
-  const { rows, cols, fgHex, bgHex, bgTransparent, fontSize, attenuation, colourMode, outputFont, charset, charAspect } = opts;
+export function renderToHTML(charGrid, brightness, colourData, opts = {}, opacities = null) {
+  const rows = opts.rows || charGrid.length;
+  const cols = opts.cols || (charGrid[0] ? charGrid[0].length : 80);
+  const fgHex = opts.fgHex || '#ffffff';
+  const bgHex = opts.bgHex || '#000000';
+  const fontSize = opts.fontSize || 6.0;
+  const attenuation = opts.attenuation !== undefined ? opts.attenuation : 0.7;
+  const colourMode = !!opts.colourMode;
+  const outputFont = opts.outputFont || "'JetBrains Mono',monospace";
+  const charset = opts.charset || 'common';
   const [fr, fg, fb] = hexToRgb(fgHex);
   const [br, bg, bb] = hexToRgb(bgHex);
 
@@ -945,31 +929,33 @@ export function renderToHTML(charGrid, brightness, colourData, opts, opacities =
   const hGap = opts.horizontalGap !== undefined ? `${opts.horizontalGap}px` : (isBinary ? '1px' : '0.3px');
   const lHeight = opts.verticalGap !== undefined ? opts.verticalGap : (isBinary ? '1.1' : '1.15');
 
+  const isLightBg = (br * 0.299 + bg * 0.587 + bb * 0.114) > 128;
+
   const lines = [];
   for (let y = 0; y < rows; y++) {
     const parts = [];
     for (let x = 0; x < cols; x++) {
       const ch = charGrid[y][x];
       const idx = y * cols + x;
-      const luma = brightness[idx] / 255;
+      const luma = brightness ? (brightness[idx] / 255) : 1;
 
       let pr, pg, pb;
       if (colourMode && colourData) {
         const ci = idx * 4;
         pr = colourData.data[ci]; pg = colourData.data[ci + 1]; pb = colourData.data[ci + 2];
       } else {
-        pr = Math.round(fr * luma + br * (1 - luma));
-        pg = Math.round(fg * luma + bg * (1 - luma));
-        pb = Math.round(fb * luma + bb * (1 - luma));
+        const toneWeight = isLightBg ? (1 - luma) : luma;
+        pr = Math.round(fr * toneWeight + br * (1 - toneWeight));
+        pg = Math.round(fg * toneWeight + bg * (1 - toneWeight));
+        pb = Math.round(fb * toneWeight + bb * (1 - toneWeight));
       }
 
-      let alpha;
+      let alpha = 1;
       if (opacities) {
         alpha = opacities[idx];
-      } else {
-        alpha = attenuation > 0
-          ? Math.max(0.08, Math.min(1, luma * attenuation + (1 - attenuation)))
-          : 1;
+      } else if (attenuation > 0) {
+        const depth = isLightBg ? (1 - luma) : luma;
+        alpha = Math.max(0.06, Math.min(1, depth * attenuation + (1 - attenuation)));
       }
 
       const esc = ch === '&' ? '&amp;' : ch === '<' ? '&lt;' : ch === '>' ? '&gt;' : ch;
@@ -982,8 +968,18 @@ export function renderToHTML(charGrid, brightness, colourData, opts, opacities =
     `<pre style="font-family:${outputFont};font-size:${fontSize}px;line-height:${lHeight};margin:0;letter-spacing:${hGap};">${lines.join('\n')}</pre></div>`;
 }
 
-export function renderToSVG(charGrid, brightness, colourData, opts, opacities = null) {
-  const { rows, cols, fgHex, bgHex, bgTransparent, fontSize, attenuation, colourMode, outputFont, charset, charAspect } = opts;
+export function renderToSVG(charGrid, brightness, colourData, opts = {}, opacities = null) {
+  const rows = opts.rows || charGrid.length;
+  const cols = opts.cols || (charGrid[0] ? charGrid[0].length : 80);
+  const fgHex = opts.fgHex || '#ffffff';
+  const bgHex = opts.bgHex || '#000000';
+  const bgTransparent = !!opts.bgTransparent;
+  const fontSize = opts.fontSize || 6.0;
+  const attenuation = opts.attenuation !== undefined ? opts.attenuation : 0.7;
+  const colourMode = !!opts.colourMode;
+  const outputFont = opts.outputFont || "'JetBrains Mono',monospace";
+  const charset = opts.charset || 'common';
+  const charAspect = opts.charAspect || 0.45;
   const [fr, fg, fb] = hexToRgb(fgHex);
   const [br, bg, bb] = hexToRgb(bgHex);
 
@@ -994,18 +990,20 @@ export function renderToSVG(charGrid, brightness, colourData, opts, opacities = 
   const hGap = opts.horizontalGap !== undefined ? opts.horizontalGap : (isBinary ? 1.0 : 0.3);
   const lHeight = opts.verticalGap !== undefined ? opts.verticalGap : (isBinary ? 1.10 : 1.15);
 
-  const baseCw = fontSize * (charAspect || 0.6);
+  const baseCw = fontSize * (charAspect || 0.45);
   const cw = baseCw + hGap;
   const ch = fontSize * lHeight;
   const svgW = cols * cw;
   const svgH = rows * ch;
 
-  const fontImport = `@import url('https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&family=IBM+Plex+Mono&family=Fira+Mono&family=Source+Code+Pro&family=Roboto+Mono&family=JetBrains+Mono&family=Inconsolata&family=Oxygen+Mono&family=Share+Tech+Mono&display=swap');`;
+  const fontImport = `@import url('https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&family=IBM+Plex+Mono&family=Fira+Mono&family=Source+Code+Pro&family=Roboto+Mono&family=JetBrains+Mono&family=Inconsolata&family=Oxygen+Mono&family=Share+Tech+Mono&family=Ubuntu+Mono:wght@400;700&family=Space+Mono:wght@400;700&family=Anonymous+Pro:wght@400;700&family=PT+Mono&family=Victor+Mono:wght@400;500&display=swap');`;
   const parts = [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${svgW.toFixed(1)}" height="${svgH.toFixed(1)}" viewBox="0 0 ${svgW.toFixed(1)} ${svgH.toFixed(1)}">`,
     bgTransparent ? '' : `<rect width="100%" height="100%" fill="${bgHex}"/>`,
     `<style><![CDATA[${fontImport} text{font-family:${outputFont};font-size:${fontSize}px;white-space:pre;letter-spacing:${hGap}px;}]]></style>`,
   ];
+
+  const isLightBg = (br * 0.299 + bg * 0.587 + bb * 0.114) > 128;
 
   for (let y = 0; y < rows; y++) {
     const ty = y * ch + fontSize * 0.85;
@@ -1013,25 +1011,25 @@ export function renderToSVG(charGrid, brightness, colourData, opts, opacities = 
     for (let x = 0; x < cols; x++) {
       const ch_ = charGrid[y][x];
       const idx = y * cols + x;
-      const luma = brightness[idx] / 255;
+      const luma = brightness ? (brightness[idx] / 255) : 1;
 
       let pr, pg, pb;
       if (colourMode && colourData) {
         const ci = idx * 4;
         pr = colourData.data[ci]; pg = colourData.data[ci + 1]; pb = colourData.data[ci + 2];
       } else {
-        pr = Math.round(fr * luma + br * (1 - luma));
-        pg = Math.round(fg * luma + bg * (1 - luma));
-        pb = Math.round(fb * luma + bb * (1 - luma));
+        const toneWeight = isLightBg ? (1 - luma) : luma;
+        pr = Math.round(fr * toneWeight + br * (1 - toneWeight));
+        pg = Math.round(fg * toneWeight + bg * (1 - toneWeight));
+        pb = Math.round(fb * toneWeight + bb * (1 - toneWeight));
       }
 
-      let alpha;
+      let alpha = 1;
       if (opacities) {
         alpha = opacities[idx];
-      } else {
-        alpha = attenuation > 0
-          ? Math.max(0.08, Math.min(1, luma * attenuation + (1 - attenuation)))
-          : 1;
+      } else if (attenuation > 0) {
+        const depth = isLightBg ? (1 - luma) : luma;
+        alpha = Math.max(0.06, Math.min(1, depth * attenuation + (1 - attenuation)));
       }
       const esc = ch_ === '&' ? '&amp;' : ch_ === '<' ? '&lt;' : ch_ === '>' ? '&gt;' : ch_ === '"' ? '&quot;' : ch_ === "'" ? '&apos;' : ch_;
       spans.push(`<tspan fill="rgba(${pr},${pg},${pb},${alpha.toFixed(2)})">${esc}</tspan>`);
@@ -1185,49 +1183,65 @@ export async function runPipeline(img, params) {
 
   const colourResized = colourMode ? resizeColour(sharpened, srcW, srcH, gridCols, charAspect) : null;
 
-  const rawBright = new Float32Array(bright);
   if (equalize) bright = equalizeHistogram(bright, gridCols, rows);
   bright = applyExposure(bright, exposure || 1.0);
   bright = applyGamma(bright, gamma);
   bright = applyContrast(bright, contrast);
   bright = applyVignette(bright, gridCols, rows, vignette);
-  bright = edgeBiasedBrightness(bright, gridCols, rows, edgeWeight);
   bright = applyFilmGrain(bright, grain);
+
+  const { gx, gy } = sobel(bright, gridCols, rows);
+  const edgeMag = new Float32Array(gridCols * rows);
+  let maxM = 0;
+  for (let i = 0; i < edgeMag.length; i++) {
+    edgeMag[i] = Math.sqrt(gx[i] * gx[i] + gy[i] * gy[i]);
+    if (edgeMag[i] > maxM) maxM = edgeMag[i];
+  }
+  if (maxM > 0) for (let i = 0; i < edgeMag.length; i++) edgeMag[i] /= maxM;
+
+  if (edgeWeight > 0) {
+    bright = edgeBiasedBrightness(bright, gridCols, rows, edgeWeight);
+  }
+
+  if (multiscale) {
+    for (let i = 0; i < bright.length; i++) {
+      const edge = edgeMag[i];
+      if (edge > 0.25) {
+        const boost = 1.0 + ((multiscaleBoost || 1.2) - 1.0) * edge;
+        bright[i] = Math.max(0, Math.min(255, (bright[i] - 128) * boost + 128));
+      }
+    }
+  }
+
+  if (saliencyAware && !showMask) {
+    const salMap = await computeMLSaliency(sharpened, srcW, srcH, gridCols, rows);
+
+    let globalMean = 0;
+    for (let i = 0; i < bright.length; i++) globalMean += bright[i];
+    globalMean /= bright.length;
+
+    const boost = saliencyBoost || 0.6;
+
+    for (let i = 0; i < bright.length; i++) {
+      const sal = salMap[i];
+      if (sal > 0.35) {
+        const contrastFactor = 1.0 + (sal - 0.35) * boost * 2.0;
+        let newVal = globalMean + (bright[i] - globalMean) * contrastFactor;
+        newVal += (sal - 0.35) * boost * 35;
+        bright[i] = Math.max(0, Math.min(255, newVal));
+      } else {
+        const fade = (0.35 - sal) * boost * 0.4;
+        bright[i] = Math.max(0, Math.min(255, bright[i] * (1.0 - fade)));
+      }
+    }
+  }
+
+  bright = applyLocalDetail(bright, gridCols, rows, 0.30);
 
   const rawChars = charset === 'custom' && params.customCharset
     ? params.customCharset
     : (RAW_CHARSETS[charset] || RAW_CHARSETS.full);
   const chars = measureCharDensity(rawChars);
-
-  const strippedChars = chars.replace(/\s/g, '');
-
-  if (saliencyAware && !showMask) {
-    const salMap = await computeMLSaliency(sharpened, srcW, srcH, gridCols, rows);
-
-    // Compute global mean brightness for contrast modulation
-    let globalMean = 0;
-    for (let i = 0; i < bright.length; i++) globalMean += bright[i];
-    globalMean /= bright.length;
-
-    const boost = saliencyBoost || 0.5;
-
-    for (let i = 0; i < bright.length; i++) {
-      const sal = salMap[i];       // 0 = unimportant, 1 = most salient
-
-      // Contrast modulation: amplify deviation from mean in salient areas
-      // sal=1 → contrast multiplier up to 1.0 + boost*2.0 (e.g. 2.2x at boost=0.6)
-      // sal=0 → compress contrast towards mean (fade the background)
-      const contrastFactor = 1.0 + (sal - 0.3) * boost * 3.0;
-      const deviation = bright[i] - globalMean;
-      let newVal = globalMean + deviation * Math.max(0.3, contrastFactor);
-
-      // Also add a direct brightness lift for salient areas
-      newVal += sal * boost * 60;
-
-      bright[i] = Math.max(0, Math.min(255, newVal));
-    }
-  }
-
 
   let charGrid;
   let opacities = null;
@@ -1243,49 +1257,32 @@ export async function runPipeline(img, params) {
       }
       charGrid.push(row);
     }
+  } else if (dataFlood) {
+    opacities = new Float32Array(gridCols * rows);
+    for (let i = 0; i < opacities.length; i++) {
+      let luma = bright[i] / 255;
+      if (invert) luma = 1 - luma;
+      let t = luma * luma * (3 - 2 * luma);
+      t = t * t * (3 - 2 * t);
+      const edgeBoost = edgeMag ? edgeMag[i] * 0.35 : 0;
+      opacities[i] = Math.min(1, Math.max(0.04, t + edgeBoost));
+    }
+    charGrid = brightnessToChars(bright, gridCols, rows, chars, invert, edgeMag, null, true);
   } else {
-    let edgeMag = null;
-    let fullResData = null;
-
-    const processedBright = retinexNormalization(bright, gridCols, rows);
-
-    const { gx, gy } = sobel(processedBright, gridCols, rows);
-    edgeMag = new Float32Array(gridCols * rows);
-    let maxM = 0;
-    for (let i = 0; i < edgeMag.length; i++) {
-      edgeMag[i] = Math.sqrt(gx[i] * gx[i] + gy[i] * gy[i]);
-      if (edgeMag[i] > maxM) maxM = edgeMag[i];
-    }
-    if (maxM > 0) for (let i = 0; i < edgeMag.length; i++) edgeMag[i] /= maxM;
-    if (multiscale) {
-      for (let i = 0; i < bright.length; i++) {
-        const edge = edgeMag[i];
-        if (edge > 0.4) {
-          const boost = 1.0 + (multiscaleBoost - 1.0) * edge;
-          bright[i] = Math.max(0, Math.min(255, (bright[i] - 128) * boost + 128));
-        }
-      }
-    }
-
-    if (charset === 'full' || charset === 'lineart' || charset === 'edges') {
-      fullResData = {
-        data: computeBrightness(sharpened, srcW, srcH),
-        w: srcW,
-        h: srcH
-      };
-    }
-
-    let brightForChars = processedBright;
-    if (dither && !fullResData) {
-      brightForChars = floydSteinberg(processedBright, gridCols, rows, chars.length);
+    let brightForChars = bright;
+    if (dither) {
+      brightForChars = floydSteinberg(bright, gridCols, rows, chars.length);
     }
     if (attenuation > 0) {
       for (let i = 0; i < brightForChars.length; i++) {
-        brightForChars[i] = Math.max(0, Math.min(255, brightForChars[i] * (1 - attenuation * 0.5)));
+        brightForChars[i] = Math.max(0, Math.min(255, brightForChars[i] * (1 - attenuation * 0.35)));
       }
     }
 
-    charGrid = brightnessToChars(brightForChars, gridCols, rows, chars, invert, edgeMag, fullResData, dataFlood);
+    charGrid = brightnessToChars(brightForChars, gridCols, rows, chars, invert, edgeMag, null, false, { gx, gy });
+    if (charset === 'binary') {
+      charGrid = cleanupBinaryGrid(charGrid, gridCols, rows);
+    }
   }
 
   if (!showMask && hasAlpha) {
@@ -1299,5 +1296,5 @@ export async function runPipeline(img, params) {
     }
   }
 
-  return { charGrid, brightness: rawBright, colourData: colourResized ? colourResized.data : null, rows, cols: gridCols, opacities };
+  return { charGrid, brightness: bright, colourData: colourResized ? colourResized.data : null, rows, cols: gridCols, opacities };
 }
